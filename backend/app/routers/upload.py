@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.database import get_db
 from app.models import Sound
-from app.pipeline import embed_and_layout
+from app.pipeline import PipelineError, embed_and_layout
 from app.schemas import Point
 
 router = APIRouter(prefix="/api", tags=["upload"])
@@ -68,8 +68,11 @@ async def upload_sound(
     content = await file.read()
     dest_path.write_bytes(content)
 
-    # Run embedding + layout (sync; pipeline is CPU-bound but quick for stub)
-    coords_2d, coords_3d = embed_and_layout(dest_path)
+    # Run embedding + layout
+    try:
+        coords_2d, coords_3d = embed_and_layout(dest_path)
+    except PipelineError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
     # Persist to DB
     audio_path = f"uploads/{safe_name}"
