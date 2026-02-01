@@ -27,3 +27,6 @@ htmlcov/
 
 # Logs
 *.log
+
+# Audio samples
+UK_Garage_Samples/
