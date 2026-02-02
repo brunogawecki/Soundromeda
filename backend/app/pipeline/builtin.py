@@ -28,12 +28,13 @@ def precompute_and_save_meta(
             (so subdirs are preserved, e.g. "audio/UK_Garage_Samples/Kit1/kick.wav").
     """
     paths = [Path(p).resolve() for p in audio_paths]
-    coords_list = precompute_layout(paths, save_model_path=model_path)
+    coords_list = precompute_layout(paths, save_model_path=model_path, n_components=3)
     root = Path(audio_root).resolve() if audio_root else None
 
     points = []
     for i, (path, coords) in enumerate(zip(paths, coords_list)):
         coords_2d = coords[:2]
+        coords_3d = coords[:3]
         name = path.stem or path.name
         if root is not None:
             try:
@@ -46,6 +47,7 @@ def precompute_and_save_meta(
         points.append({
             "id": f"builtin-{i}",
             "coords_2d": coords_2d,
+            "coords_3d": coords_3d,
             "name": name,
             "audio_path": base_audio_path + rel_str,
         })

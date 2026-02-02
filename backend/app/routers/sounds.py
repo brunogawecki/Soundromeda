@@ -37,6 +37,7 @@ def _load_builtin_points(request: Request) -> list[Point]:
         Point(
             id=item["id"],
             coords_2d=item["coords_2d"],
+            coords_3d=item.get("coords_3d", [0, 0, 0]),  # Fallback if regenerating not done
             name=item["name"],
             audioUrl=_normalize_audio_url(item, base),
         )
@@ -66,6 +67,7 @@ async def get_sounds(source: Literal["builtin", "user"], request: Request, db: A
         Point(
             id=s.id,
             coords_2d=s.coords_2d,
+            coords_3d=s.coords_3d,
             name=s.name,
             audioUrl=f"{base}/static/{s.audio_path}" if not s.audio_path.startswith("/") else f"{base}{s.audio_path}",
         )
@@ -91,6 +93,7 @@ async def get_sound_by_id(sound_id: str, request: Request, db: AsyncSession = De
             return Point(
                 id=sound.id,
                 coords_2d=sound.coords_2d,
+                coords_3d=sound.coords_3d,
                 name=sound.name,
                 audioUrl=f"{base}/static/{sound.audio_path}" if not sound.audio_path.startswith("/") else f"{base}{sound.audio_path}",
             )
