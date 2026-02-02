@@ -18,24 +18,24 @@ def precompute_layout(
     audio_paths: list[str | Path],
     *,
     save_model_path: str | Path | None = None,
+    n_components: int = 2,
     n_neighbors: int = 15,
     min_dist: float = 0.1,
-) -> list[tuple[list[float], list[float]]]:
-    """Fit UMAP on a set of audio files and return 2D/3D coords for each.
-
-    Fits UMAP with n_components=3 so both 2D (first two components) and 3D
-    coordinates are available. Optionally saves the fitted model for later
-    transform of new files.
+) -> list[list[float]]:
+    """Fit UMAP on a set of audio files and return coordinates for each.
 
     Args:
         audio_paths: List of paths to audio files.
-        save_model_path: If set, save the fitted UMAP + feature matrix for transform.
+        save_model_path: If set, save the fitted UMAP + normalization for transform.
+        n_components: Number of dimensions (2 or 3). Default 2.
         n_neighbors: UMAP n_neighbors (smaller = more local structure).
         min_dist: UMAP min_dist (0–1, lower = tighter clusters).
 
     Returns:
-        List of (coords_2d, coords_3d) per file. coords_2d = [x, y], coords_3d = [x, y, z].
+        List of coords per file; each coords is [x, y] or [x, y, z] (length n_components).
     """
+    if n_components not in (2, 3):
+        raise ValueError("n_components must be 2 or 3")
     if not audio_paths:
         return []
 
@@ -53,9 +53,9 @@ def precompute_layout(
         return []
 
     X = np.vstack(features_list)
-    # Single file: return origin-like coords, no UMAP fit
+    origin = [0.0] * n_components
     if len(X) == 1:
-        return [([0.0, 0.0], [0.0, 0.0, 0.0])]
+        return [origin]
 
     # Normalize per feature for stable UMAP
     X_mean = np.mean(X, axis=0)
@@ -65,7 +65,7 @@ def precompute_layout(
 
     n_neighbors_actual = max(2, min(n_neighbors, len(X_norm) - 1))
     reducer = umap.UMAP(
-        n_components=2,
+        n_components=n_components,
         n_neighbors=n_neighbors_actual,
         min_dist=min_dist,
         metric="euclidean",
@@ -73,11 +73,7 @@ def precompute_layout(
     )
     embedding = reducer.fit_transform(X_norm)
 
-    results: list[tuple[list[float], list[float]]] = []
-    for i in range(len(embedding)):
-        coords_3d = embedding[i].tolist()
-        coords_2d = coords_3d[:2]
-        results.append((coords_2d, coords_3d))
+    results: list[list[float]] = [embedding[i].tolist() for i in range(len(embedding))]
 
     if save_model_path:
         _save_model(save_model_path, reducer=reducer, X_mean=X_mean, X_std=X_std)
@@ -88,8 +84,8 @@ def precompute_layout(
 def embed_and_layout(
     audio_path: str | Path,
     model_path: str | Path | None = None,
-) -> tuple[list[float], list[float]]:
-    """Compute 2D and 3D coordinates for an audio file.
+) -> list[float]:
+    """Compute layout coordinates for an audio file.
 
     If a persisted UMAP model exists at model_path, transforms the file into
     the existing map. Otherwise raises PipelineError.
@@ -100,7 +96,7 @@ def embed_and_layout(
             uses default path: static/meta/umap_model.joblib relative to backend root.
 
     Returns:
-        Tuple of (coords_2d, coords_3d) where each is [x, y] or [x, y, z].
+        Coords [x, y] or [x, y, z] (length matches the model's n_components).
 
     Raises:
         PipelineError: If no model exists at model_path or transform fails.
@@ -143,7 +139,7 @@ def _load_model(path: Path) -> dict[str, Any]:
     return joblib.load(path)
 
 
-def _transform_with_model(audio_path: Path, model_path: Path) -> tuple[list[float], list[float]]:
+def _transform_with_model(audio_path: Path, model_path: Path) -> list[float]:
     """Transform a single file using a saved UMAP model."""
     data = _load_model(model_path)
     reducer = data["reducer"]
@@ -153,6 +149,4 @@ def _transform_with_model(audio_path: Path, model_path: Path) -> tuple[list[floa
     feat = extract_features(audio_path)
     X_norm = (feat - X_mean) / np.where(X_std < 1e-8, 1.0, X_std)
     embedding = reducer.transform(X_norm.reshape(1, -1))[0]
-    coords_3d = embedding.tolist()
-    coords_2d = coords_3d[:2]
-    return coords_2d, coords_3d
+    return embedding.tolist()

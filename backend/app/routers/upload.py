@@ -70,16 +70,17 @@ async def upload_sound(
 
     # Run embedding + layout
     try:
-        coords_2d, coords_3d = embed_and_layout(dest_path)
+        coords = embed_and_layout(dest_path)
     except PipelineError as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+    coords_2d = coords[:2]
 
     # Persist to DB
     audio_path = f"uploads/{safe_name}"
     sound = Sound(
         name=file.filename or safe_name,
         coords_2d=coords_2d,
-        coords_3d=coords_3d,
         audio_path=audio_path,
     )
     db.add(sound)
@@ -90,7 +91,6 @@ async def upload_sound(
     return Point(
         id=sound.id,
         coords_2d=sound.coords_2d,
-        coords_3d=sound.coords_3d,
         name=sound.name,
         audioUrl=f"{base}/static/{sound.audio_path}",
     )

@@ -15,5 +15,4 @@ class Sound(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     coords_2d: Mapped[list[float]] = mapped_column(JSON, nullable=False)  # [x, y]
-    coords_3d: Mapped[list[float]] = mapped_column(JSON, nullable=False)  # [x, y, z]
     audio_path: Mapped[str] = mapped_column(String(1024), nullable=False)  # relative path for URL

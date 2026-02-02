@@ -16,7 +16,7 @@ def precompute_and_save_meta(
 
     Convenience for the built-in-library task: runs precompute_layout,
     saves the model if model_path is given, and writes builtin.json
-    with points (id, coords_2d, coords_3d, name, audio_path).
+    with points (id, coords_2d, name, audio_path).
 
     Args:
         audio_paths: List of paths to audio files.
@@ -28,13 +28,13 @@ def precompute_and_save_meta(
     coords_list = precompute_layout(paths, save_model_path=model_path)
 
     points = []
-    for i, (path, (coords_2d, coords_3d)) in enumerate(zip(paths, coords_list)):
+    for i, (path, coords) in enumerate(zip(paths, coords_list)):
+        coords_2d = coords[:2]
         name = path.stem or path.name
         rel = path.name
         points.append({
             "id": f"builtin-{i}",
             "coords_2d": coords_2d,
-            "coords_3d": coords_3d,
             "name": name,
             "audio_path": base_audio_path + rel,
         })
