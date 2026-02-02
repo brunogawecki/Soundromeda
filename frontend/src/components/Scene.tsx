@@ -29,7 +29,7 @@ async function fetchAllPoints(): Promise<SoundPoint[]> {
     ]);
     const builtinPoints = builtin.points ?? [];
     const userPoints = user.points ?? [];
-    const all = [...builtinPoints, ...userPoints];s
+    const all = [...builtinPoints, ...userPoints];
     return all.length >= 2 ? all : TEST_POINTS;
   } catch {
     return TEST_POINTS;
