@@ -19,15 +19,21 @@ def extract_features(audio_path: str | Path, sr: int = 22050) -> np.ndarray:
         1D numpy array of features.
     """
     y, sr_actual = librosa.load(audio_path, sr=sr, mono=True, duration=30.0)
+    # Fixed n_fft so every file gets the same spectral resolution and features are comparable.
+    # 256 is small enough for short samples (~12 ms at 22 kHz); shorter clips are zero-padded.
+    n_fft = 256
+
     # Mel spectrogram
-    mel = librosa.feature.melspectrogram(y=y, sr=sr_actual, n_mels=32, fmax=8000)
+    mel = librosa.feature.melspectrogram(
+        y=y, sr=sr_actual, n_fft=n_fft, n_mels=32, fmax=8000
+    )
     mel_db = librosa.power_to_db(mel, ref=np.max)
     mel_mean = np.mean(mel_db, axis=1)
     mel_std = np.std(mel_db, axis=1)
     mel_features = np.concatenate([mel_mean, mel_std])
 
     # MFCC
-    mfcc = librosa.feature.mfcc(y=y, sr=sr_actual, n_mfcc=13)
+    mfcc = librosa.feature.mfcc(y=y, sr=sr_actual, n_fft=n_fft, n_mfcc=13)
     mfcc_mean = np.mean(mfcc, axis=1)
     mfcc_std = np.std(mfcc, axis=1)
     mfcc_features = np.concatenate([mfcc_mean, mfcc_std])
