@@ -3,36 +3,31 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useAppStore } from '../store/useAppStore';
 import type { SoundPoint } from '../types/sounds';
 import { buildKDTreeFromPoints } from '../utils/kdTree';
+import { playAudioUrl } from '../useTone';
 import * as THREE from 'three';
 
 const API_BASE = '';
 
-/** Visual-only test points when API returns none (no audio). */
-const TEST_POINTS: SoundPoint[] = [
-  { id: 't1', coords_2d: [0, 0], name: 'Center', audioUrl: '' },
-  { id: 't2', coords_2d: [1.2, 0], name: 'East', audioUrl: '' },
-  { id: 't3', coords_2d: [-1, 0.5], name: 'West', audioUrl: '' },
-  { id: 't4', coords_2d: [0.3, 1], name: 'North', audioUrl: '' },
-  { id: 't5', coords_2d: [-0.5, -0.8], name: 'South', audioUrl: '' },
-  { id: 't6', coords_2d: [0.8, 0.7], name: 'NE', audioUrl: '' },
-  { id: 't7', coords_2d: [-0.7, -0.3], name: 'SW', audioUrl: '' },
-  { id: 't8', coords_2d: [0.6, -0.5], name: 'SE', audioUrl: '' },
-  { id: 't9', coords_2d: [-0.9, 0.6], name: 'NW', audioUrl: '' },
-  { id: 't10', coords_2d: [1.5, -0.4], name: 'Far East', audioUrl: '' },
-];
-
 async function fetchAllPoints(): Promise<SoundPoint[]> {
   try {
-    const [builtin, user] = await Promise.all([
-      fetch(`${API_BASE}/api/sounds?source=builtin`).then((r) => r.json()),
-      fetch(`${API_BASE}/api/sounds?source=user`).then((r) => r.json()),
+    const [builtinRes, userRes] = await Promise.all([
+      fetch(`${API_BASE}/api/sounds?source=builtin`),
+      fetch(`${API_BASE}/api/sounds?source=user`),
     ]);
-    const builtinPoints = builtin.points ?? [];
-    const userPoints = user.points ?? [];
-    const all = [...builtinPoints, ...userPoints];
-    return all.length >= 2 ? all : TEST_POINTS;
-  } catch {
-    return TEST_POINTS;
+    const builtin = builtinRes.ok ? await builtinRes.json() : { points: [] };
+    const user = userRes.ok ? await userRes.json() : { points: [] };
+    if (!builtinRes.ok) {
+      console.error('Failed to fetch builtin sounds:', builtinRes.status, await builtinRes.text().catch(() => ''));
+    }
+    if (!userRes.ok) {
+      console.error('Failed to fetch user sounds:', userRes.status, await userRes.text().catch(() => ''));
+    }
+    const builtinPoints: SoundPoint[] = Array.isArray(builtin.points) ? builtin.points : [];
+    const userPoints: SoundPoint[] = Array.isArray(user.points) ? user.points : [];
+    return [...builtinPoints, ...userPoints];
+  } catch (err) {
+    console.error('Failed to fetch sounds:', err);
+    return [];
   }
 }
 
@@ -45,6 +40,10 @@ export function Scene() {
   const [points, setPoints] = useState<SoundPoint[]>([]);
   const setHoveredId = useAppStore((s) => s.setHoveredId);
   const hoveredId = useAppStore((s) => s.hoveredId);
+  const setSelectedId = useAppStore((s) => s.setSelectedId);
+  const setPlayingId = useAppStore((s) => s.setPlayingId);
+  const selectedId = useAppStore((s) => s.selectedId);
+  const galaxyVersion = useAppStore((s) => s.galaxyVersion);
 
   const { camera } = useThree();
   const raycaster = useRef(new THREE.Raycaster());
@@ -60,7 +59,20 @@ export function Scene() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [galaxyVersion]);
+
+  // Play selected sound with Tone.js; clear playingId when done
+  useEffect(() => {
+    if (!selectedId || points.length === 0) return;
+    const point = points.find((p) => String(p.id) === String(selectedId));
+    if (!point?.audioUrl) return;
+    setPlayingId(selectedId);
+    const stop = playAudioUrl(point.audioUrl, () => setPlayingId(null));
+    return () => {
+      stop();
+      setPlayingId(null);
+    };
+  }, [selectedId, points, setPlayingId]);
 
   const kdTree = useMemo(() => {
     if (points.length === 0) return null;
@@ -93,9 +105,15 @@ export function Scene() {
   const positions = useMemo(() => {
     const pos = new Float32Array(points.length * 3);
     points.forEach((p, i) => {
-      pos[i * 3] = p.coords_2d[0];
-      pos[i * 3 + 1] = p.coords_2d[1];
-      pos[i * 3 + 2] = 0;
+      if (p.coords_3d && p.coords_3d.length === 3) {
+        pos[i * 3] = p.coords_3d[0];
+        pos[i * 3 + 1] = p.coords_3d[1];
+        pos[i * 3 + 2] = p.coords_3d[2];
+      } else {
+        pos[i * 3] = p.coords_2d[0];
+        pos[i * 3 + 1] = p.coords_2d[1];
+        pos[i * 3 + 2] = 0;
+      }
     });
     return pos;
   }, [points]);
@@ -123,6 +141,9 @@ export function Scene() {
         position={[0, 0, 0]}
         onPointerMove={handlePointerMove}
         onPointerLeave={() => setHoveredId(null)}
+        onPointerDown={() => {
+          if (hoveredId != null) setSelectedId(hoveredId);
+        }}
       >
         <planeGeometry args={[1e6, 1e6]} />
         <meshBasicMaterial visible={false} side={THREE.DoubleSide} />

@@ -2,6 +2,7 @@
 export interface SoundPoint {
   id: string | number;
   coords_2d: [number, number];
+  coords_3d?: [number, number, number];
   name: string;
   audioUrl: string;
 }

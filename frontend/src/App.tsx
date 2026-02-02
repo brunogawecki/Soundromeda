@@ -4,6 +4,7 @@ import { OrbitControls } from '@react-three/drei';
 import { useAppStore } from './store/useAppStore';
 import { useToneStart } from './useTone';
 import { Scene } from './components/Scene';
+import { UploadPanel } from './components/UploadPanel';
 import './App.css';
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
         <Scene />
         <OrbitControls />
       </Canvas>
+      <UploadPanel />
     </div>
   );
 }

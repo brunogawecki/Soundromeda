@@ -72,11 +72,15 @@ def precompute_layout(
         random_state=42,
     )
     embedding = reducer.fit_transform(X_norm)
+    
+    # Center the coordinates
+    centroid = np.mean(embedding, axis=0)
+    embedding = embedding - centroid
 
     results: list[list[float]] = [embedding[i].tolist() for i in range(len(embedding))]
 
     if save_model_path:
-        _save_model(save_model_path, reducer=reducer, X_mean=X_mean, X_std=X_std)
+        _save_model(save_model_path, reducer=reducer, X_mean=X_mean, X_std=X_std, centroid=centroid)
 
     return results
 
@@ -124,11 +128,15 @@ def _save_model(
     reducer: umap.UMAP,
     X_mean: np.ndarray,
     X_std: np.ndarray,
+    centroid: np.ndarray | None = None,
 ) -> None:
-    """Persist UMAP model and normalization params for transform."""
+    """Persist UMAP model, normalization params and centroid for transform."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
+    state = {"reducer": reducer, "X_mean": X_mean, "X_std": X_std}
+    if centroid is not None:
+        state["centroid"] = centroid
     joblib.dump(
-        {"reducer": reducer, "X_mean": X_mean, "X_std": X_std},
+        state,
         path,
         compress=3,
     )
@@ -149,4 +157,9 @@ def _transform_with_model(audio_path: Path, model_path: Path) -> list[float]:
     feat = extract_features(audio_path)
     X_norm = (feat - X_mean) / np.where(X_std < 1e-8, 1.0, X_std)
     embedding = reducer.transform(X_norm.reshape(1, -1))[0]
+    
+    # Apply centering if we have stored centroid (or calculate from embedding if training)
+    if "centroid" in data:
+        embedding = embedding - data["centroid"]
+        
     return embedding.tolist()
