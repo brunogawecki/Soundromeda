@@ -1,11 +1,11 @@
-"""CLI entry point: python -m app.pipeline --precompute ..."""
+"""CLI entry point: python -m app.soundspace --precompute ..."""
 import argparse
 
-from app.pipeline.builtin import precompute_and_save_meta
+from app.soundspace import build_and_write_builtin_json
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Soundromeda audio embedding pipeline")
+    parser = argparse.ArgumentParser(description="Soundromeda sound space: precompute built-in library layout and meta")
     parser.add_argument("--precompute", nargs="+", help="Audio file paths to precompute")
     parser.add_argument("--meta", required=True, help="Output builtin.json path")
     parser.add_argument("--model", help="Save UMAP model path for transform of user uploads")
@@ -14,12 +14,7 @@ def main() -> None:
 
     if not args.precompute:
         parser.error("--precompute requires at least one path")
-    precompute_and_save_meta(
-        args.precompute,
-        args.meta,
-        model_path=args.model,
-        base_audio_path=args.base_audio,
-    )
+    build_and_write_builtin_json(args.precompute, args.meta, model_path=args.model, base_audio_path=args.base_audio)
     print(f"Wrote {args.meta}" + (f", model {args.model}" if args.model else ""))
 
 

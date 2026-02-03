@@ -1,4 +1,4 @@
-"""Upload API: POST /api/upload — accept file, save, run pipeline, persist coords."""
+"""Upload API: POST /api/upload — accept file, save, run soundspace embedding, persist coords."""
 import uuid
 from pathlib import Path
 
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.database import get_db
 from app.models import Sound
-from app.pipeline import PipelineError, embed_and_layout
+from app.soundspace import SoundSpaceError, embed_single_sample
 from app.schemas import Point
 
 router = APIRouter(prefix="/api", tags=["upload"])
@@ -68,10 +68,10 @@ async def upload_sound(
     content = await file.read()
     dest_path.write_bytes(content)
 
-    # Run embedding + layout
+    # Run soundspace embedding
     try:
-        coords = embed_and_layout(dest_path)
-    except PipelineError as e:
+        coords = embed_single_sample(dest_path)
+    except SoundSpaceError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
     coords_2d = coords[:2]

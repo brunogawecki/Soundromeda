@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Regenerate built-in library: run pipeline on static/audio/*.wav and write
+Regenerate built-in library: run soundspace embedding on static/audio/*.wav and write
 static/meta/builtin.json + static/meta/umap_model.joblib.
 
 Requires: librosa (and soundfile or working audioread backend) for loading WAV.
@@ -47,9 +47,9 @@ def main() -> None:
     paths = [str(p) for p in audio_files]
     print(f"Precomputing layout for {len(paths)} file(s) from UK_Garage_Samples...")
 
-    from app.pipeline.builtin import precompute_and_save_meta
+    from app.soundspace import build_and_write_builtin_json
 
-    precompute_and_save_meta(
+    build_and_write_builtin_json(
         paths,
         BUILTIN_JSON,
         model_path=UMAP_MODEL,
