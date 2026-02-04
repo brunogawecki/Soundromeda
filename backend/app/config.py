@@ -22,3 +22,6 @@ class Settings(BaseSettings):
     # Paths (relative to backend root or absolute)
     static_dir: str = "static"
 
+    # CORS: comma-separated origins, e.g. "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
