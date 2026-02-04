@@ -23,6 +23,7 @@ export function UploadPanel({ uploadStatus, setUploadStatus, setUploadMessage }:
   const [uploadListHovered, setUploadListHovered] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const refreshGalaxy = useAppStore((s) => s.refreshGalaxy);
+  const setHighlightedListAudioUrl = useAppStore((s) => s.setHighlightedListAudioUrl);
 
   useEffect(() => {
     if (!uploadListHovered) return;
@@ -105,7 +106,9 @@ export function UploadPanel({ uploadStatus, setUploadStatus, setUploadMessage }:
           <Upload size={22} aria-hidden />
         </button>
         {uploadListHovered && (
-          <div className="settings-uploaded-list" role="tooltip">
+          <>
+            <div className="settings-uploaded-list-bridge" aria-hidden />
+            <div className="settings-uploaded-list" role="tooltip">
             <span className="settings-uploaded-list-title">Uploaded sounds</span>
             {uploadedFiles.length === 0 ? (
               <span className="settings-uploaded-list-empty">No uploads yet</span>
@@ -120,6 +123,8 @@ export function UploadPanel({ uploadStatus, setUploadStatus, setUploadMessage }:
                         e.preventDefault();
                         if (f.audioUrl) playAudioUrl(f.audioUrl);
                       }}
+                      onMouseEnter={() => setHighlightedListAudioUrl(f.audioUrl)}
+                      onMouseLeave={() => setHighlightedListAudioUrl(null)}
                       title={`Play ${f.name}`}
                       aria-label={`Play ${f.name}`}
                     >
@@ -130,7 +135,8 @@ export function UploadPanel({ uploadStatus, setUploadStatus, setUploadMessage }:
                 ))}
               </ul>
             )}
-          </div>
+            </div>
+          </>
         )}
       </div>
     </>

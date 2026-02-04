@@ -47,6 +47,7 @@ export function Scene() {
   const setSelectedId = useAppStore((s) => s.setSelectedId);
   const setPlayingId = useAppStore((s) => s.setPlayingId);
   const galaxyVersion = useAppStore((s) => s.galaxyVersion);
+  const highlightedListAudioUrl = useAppStore((s) => s.highlightedListAudioUrl);
 
   const { camera } = useThree();
   const startTone = useToneStart();
@@ -227,6 +228,21 @@ export function Scene() {
           <mesh position={[x, y, z]}>
             <sphereGeometry args={[0.06, 16, 16]} />
             <meshBasicMaterial color="#fbbf24" transparent opacity={0.9} />
+          </mesh>
+        );
+      })()}
+      {highlightedListAudioUrl != null && (() => {
+        const p = points.find((x) => x.audioUrl === highlightedListAudioUrl);
+        if (!p) return null;
+        const use3d = p.coords_3d && p.coords_3d.length === 3;
+        const x = use3d ? p.coords_3d![0] : p.coords_2d[0];
+        const y = use3d ? p.coords_3d![1] : p.coords_2d[1];
+        const z = use3d ? p.coords_3d![2] : 0;
+        return (
+          <mesh position={[x, y, z]}>
+            {/* <sphereGeometry args={[0.15, 24, 24]} /> */}
+            <sphereGeometry args={[0.15, 6, 6]} />
+            <meshBasicMaterial color="#f97316" transparent opacity={0.25} depthWrite={false} />
           </mesh>
         );
       })()}
