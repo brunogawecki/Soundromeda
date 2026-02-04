@@ -59,44 +59,44 @@ export function SettingsPanel() {
 
   return (
     <div className="settings-panel" ref={panelRef}>
-      <button
-        type="button"
-        className="settings-trigger"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Settings"
-        aria-expanded={open}
-        aria-haspopup="true"
-      >
-        <Settings size={22} aria-hidden />
-      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".wav,.mp3,.ogg,.flac,.m4a,.aac"
+        className="settings-file-input"
+        aria-label="Choose audio file"
+        onChange={handleFileChange}
+      />
+      <div className="settings-toolbar">
+        <button
+          type="button"
+          className="settings-trigger"
+          onClick={handleUploadClick}
+          disabled={uploadStatus === 'uploading'}
+          aria-label={uploadStatus === 'uploading' ? 'Uploading…' : 'Upload sound'}
+        >
+          <Upload size={22} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className="settings-trigger"
+          onClick={() => setOpen((o) => !o)}
+          aria-label="Settings"
+          aria-expanded={open}
+          aria-haspopup="true"
+        >
+          <Settings size={22} aria-hidden />
+        </button>
+      </div>
       {open && (
         <div className="settings-dropdown" role="menu">
-          <div className="settings-group">
-            <span className="settings-label">Upload sound</span>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".wav,.mp3,.ogg,.flac,.m4a,.aac"
-              className="settings-file-input"
-              aria-label="Choose audio file"
-              onChange={handleFileChange}
-            />
-            <button
-              type="button"
-              className="settings-upload-btn"
-              onClick={handleUploadClick}
-              disabled={uploadStatus === 'uploading'}
-            >
-              <Upload size={16} aria-hidden />
-              <span>{uploadStatus === 'uploading' ? 'Uploading…' : 'Choose file'}</span>
-            </button>
-            {uploadStatus === 'ok' && (
-              <span className="settings-upload-ok" role="status">{uploadMessage}</span>
-            )}
-            {uploadStatus === 'error' && (
-              <span className="settings-upload-error" role="alert">{uploadMessage}</span>
-            )}
-          </div>
+          {uploadStatus !== 'idle' && (
+            <div className="settings-upload-status">
+              {uploadStatus === 'uploading' && <span className="settings-upload-pending">Uploading…</span>}
+              {uploadStatus === 'ok' && <span className="settings-upload-ok" role="status">{uploadMessage}</span>}
+              {uploadStatus === 'error' && <span className="settings-upload-error" role="alert">{uploadMessage}</span>}
+            </div>
+          )}
           <div className="settings-group">
             <span className="settings-label">Hover text</span>
             <div className="settings-options">
