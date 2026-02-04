@@ -39,6 +39,7 @@ export function Scene() {
   const [points, setPoints] = useState<SoundPoint[]>([]);
   const setHoveredId = useAppStore((s) => s.setHoveredId);
   const setHoveredName = useAppStore((s) => s.setHoveredName);
+  const setPointerPosition = useAppStore((s) => s.setPointerPosition);
   const hoveredId = useAppStore((s) => s.hoveredId);
   const setSelectedId = useAppStore((s) => s.setSelectedId);
   const setPlayingId = useAppStore((s) => s.setPlayingId);
@@ -83,6 +84,7 @@ export function Scene() {
     if (!isPointerOverScene.current) {
       setHoveredId(null);
       setHoveredName(null);
+      setPointerPosition(null, null);
       return;
     }
     if (points.length === 0 || !pointsRef.current) return;
@@ -111,9 +113,10 @@ export function Scene() {
     setHoveredName(bestName);
   });
 
-  const handlePointerMove = (e: { pointer: { x: number; y: number } }) => {
+  const handlePointerMove = (e: { pointer: { x: number; y: number }; nativeEvent: { clientX: number; clientY: number } }) => {
     mouse.current.x = e.pointer.x;
     mouse.current.y = e.pointer.y;
+    setPointerPosition(e.nativeEvent.clientX, e.nativeEvent.clientY);
   };
 
   const positions = useMemo(() => {
@@ -159,6 +162,7 @@ export function Scene() {
           isPointerOverScene.current = false;
           setHoveredId(null);
           setHoveredName(null);
+          setPointerPosition(null, null);
         }}
         onPointerDown={() => {
           if (hoveredId != null) setSelectedId(hoveredId);
