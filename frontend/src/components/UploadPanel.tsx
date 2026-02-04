@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Play } from 'lucide-react';
+import { Upload, Play, FileUp, FolderUp } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { playAudioUrl } from '../useTone';
 
@@ -20,6 +20,7 @@ interface UploadPanelProps {
 
 export function UploadPanel({ uploadStatus, setUploadStatus, setUploadMessage }: UploadPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const [uploadListHovered, setUploadListHovered] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const refreshGalaxy = useAppStore((s) => s.refreshGalaxy);
@@ -49,35 +50,62 @@ export function UploadPanel({ uploadStatus, setUploadStatus, setUploadMessage }:
     };
   }, [uploadListHovered]);
 
-  const handleUploadClick = () => {
+  const handleFileClick = () => {
     setUploadStatus('idle');
     setUploadMessage('');
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setUploadStatus('uploading');
+  const handleFolderClick = () => {
+    setUploadStatus('idle');
     setUploadMessage('');
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(`${API_BASE}/api/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail ?? 'Upload failed');
+    folderInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Capture files into an array immediately. e.target.files is a live collection
+    // that can be emptied if e.target.value is cleared.
+    const fileList = e.target.files;
+    const files = fileList ? Array.from(fileList) : [];
+
+    // Clear input so same file can be selected again
+    e.target.value = '';
+
+    if (files.length === 0) return;
+
+    setUploadStatus('uploading');
+    setUploadMessage(`Processing ${files.length} file(s)...`);
+
+    let successCount = 0;
+    let failCount = 0;
+    const allowedExts = /\.(wav|mp3|ogg|flac|m4a|aac)$/i;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      // Basic client-side filtering for folder uploads
+      if (!allowedExts.test(file.name)) continue;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(`${API_BASE}/api/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+        if (!res.ok) throw new Error('Failed');
+        successCount++;
+      } catch (err) {
+        failCount++;
       }
+    }
+
+    if (successCount > 0) {
       setUploadStatus('ok');
-      setUploadMessage(`"${file.name}" added to galaxy`);
+      setUploadMessage(`Added ${successCount} sound${successCount !== 1 ? 's' : ''}`);
       refreshGalaxy();
-    } catch (err) {
+    } else {
       setUploadStatus('error');
-      setUploadMessage(err instanceof Error ? err.message : 'Upload failed');
+      setUploadMessage(failCount > 0 ? 'Upload failed' : 'No audio files found');
     }
   };
 
@@ -86,9 +114,16 @@ export function UploadPanel({ uploadStatus, setUploadStatus, setUploadMessage }:
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         accept=".wav,.mp3,.ogg,.flac,.m4a,.aac"
         className="settings-file-input"
-        aria-label="Choose audio file"
+        onChange={handleFileChange}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        {...({ webkitdirectory: "", directory: "" } as any)}
+        className="settings-file-input"
         onChange={handleFileChange}
       />
       <div
@@ -99,9 +134,8 @@ export function UploadPanel({ uploadStatus, setUploadStatus, setUploadMessage }:
         <button
           type="button"
           className="settings-trigger"
-          onClick={handleUploadClick}
           disabled={uploadStatus === 'uploading'}
-          aria-label={uploadStatus === 'uploading' ? 'Uploading…' : 'Upload sound'}
+          aria-label="Upload options"
         >
           <Upload size={22} aria-hidden />
         </button>
@@ -109,32 +143,44 @@ export function UploadPanel({ uploadStatus, setUploadStatus, setUploadMessage }:
           <>
             <div className="settings-uploaded-list-bridge" aria-hidden />
             <div className="settings-uploaded-list" role="tooltip">
-            <span className="settings-uploaded-list-title">Uploaded sounds</span>
-            {uploadedFiles.length === 0 ? (
-              <span className="settings-uploaded-list-empty">No uploads yet</span>
-            ) : (
-              <ul className="settings-uploaded-list-names">
-                {uploadedFiles.map((f, i) => (
-                  <li key={i}>
-                    <button
-                      type="button"
-                      className="settings-uploaded-list-play"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (f.audioUrl) playAudioUrl(f.audioUrl);
-                      }}
-                      onMouseEnter={() => setHighlightedListAudioUrl(f.audioUrl)}
-                      onMouseLeave={() => setHighlightedListAudioUrl(null)}
-                      title={`Play ${f.name}`}
-                      aria-label={`Play ${f.name}`}
-                    >
-                      <Play size={14} aria-hidden />
-                      <span>{f.name}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+
+              <div className="settings-action-row">
+                <button className="settings-action-btn" onClick={handleFileClick} disabled={uploadStatus === 'uploading'}>
+                  <FileUp />
+                  <span>Upload files</span>
+                </button>
+                <button className="settings-action-btn" onClick={handleFolderClick} disabled={uploadStatus === 'uploading'}>
+                  <FolderUp />
+                  <span>Upload folder</span>
+                </button>
+              </div>
+
+              <span className="settings-uploaded-list-title">Uploaded sounds</span>
+              {uploadedFiles.length === 0 ? (
+                <span className="settings-uploaded-list-empty">No uploads yet</span>
+              ) : (
+                <ul className="settings-uploaded-list-names">
+                  {uploadedFiles.map((f, i) => (
+                    <li key={i}>
+                      <button
+                        type="button"
+                        className="settings-uploaded-list-play"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (f.audioUrl) playAudioUrl(f.audioUrl);
+                        }}
+                        onMouseEnter={() => setHighlightedListAudioUrl(f.audioUrl)}
+                        onMouseLeave={() => setHighlightedListAudioUrl(null)}
+                        title={`Play ${f.name}`}
+                        aria-label={`Play ${f.name}`}
+                      >
+                        <Play size={14} aria-hidden />
+                        <span>{f.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </>
         )}

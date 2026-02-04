@@ -237,3 +237,36 @@
   font-size: 0.75rem;
   color: #f87171;
 }
+
+.settings-action-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.settings-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0.5rem;
+  background: transparent;
+  color: #94a3b8;
+  border: 1px dashed #475569;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-action-btn:hover {
+  border-color: #f97316;
+  color: #f97316;
+  background: rgba(249, 115, 22, 0.1);
+}
+
+.settings-action-btn svg {
+  width: 14px;
+  height: 14px;
+}
