@@ -2,7 +2,6 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useAppStore } from '../store/useAppStore';
 import type { SoundPoint } from '../types/sounds';
-import { buildKDTreeFromPoints } from '../utils/kdTree';
 import { playAudioUrl } from '../useTone';
 import * as THREE from 'three';
 
@@ -31,8 +30,8 @@ async function fetchAllPoints(): Promise<SoundPoint[]> {
   }
 }
 
-/** Hit-test radius in world units: points within this distance of cursor count as hovered. */
-const HOVER_RADIUS = 0.15;
+/** Hit-test radius in normalized device coords [-1,1]; points within this distance of cursor count as hovered. */
+const HOVER_NDC_RADIUS = 0.08;
 
 export function Scene() {
   const pointsRef = useRef<THREE.Points>(null);
@@ -46,8 +45,9 @@ export function Scene() {
   const galaxyVersion = useAppStore((s) => s.galaxyVersion);
 
   const { camera } = useThree();
-  const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2());
+  /** True while pointer is over the scene (plane); used so useFrame doesn't overwrite hoveredId after onPointerLeave. */
+  const isPointerOverScene = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,27 +74,36 @@ export function Scene() {
     };
   }, [selectedId, points, setPlayingId]);
 
-  const kdTree = useMemo(() => {
-    if (points.length === 0) return null;
-    return buildKDTreeFromPoints(points);
-  }, [points]);
+  // Reusable vectors for hit-test (avoid per-frame allocations)
+  const worldPos = useRef(new THREE.Vector3());
+  const ndc = useRef(new THREE.Vector3());
 
   useFrame(() => {
-    if (points.length === 0 || !kdTree || !planeRef.current) return;
-    raycaster.current.setFromCamera(mouse.current, camera);
-    const hits = raycaster.current.intersectObject(planeRef.current);
-    const hit = hits[0];
-    if (!hit) return;
-    const nn = kdTree.nearestNeighbor(hit.point.x, hit.point.y);
-    if (!nn) return;
-    const dx = hit.point.x - nn.x;
-    const dy = hit.point.y - nn.y;
-    const distSq = dx * dx + dy * dy;
-    if (distSq <= HOVER_RADIUS * HOVER_RADIUS) {
-      setHoveredId(String(nn.id));
-    } else {
+    if (!isPointerOverScene.current) {
       setHoveredId(null);
+      return;
     }
+    if (points.length === 0 || !pointsRef.current) return;
+    const matrixWorld = pointsRef.current.matrixWorld;
+    let bestId: string | null = null;
+    let bestDistSq = HOVER_NDC_RADIUS * HOVER_NDC_RADIUS;
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const use3d = p.coords_3d && p.coords_3d.length === 3;
+      const x = use3d ? p.coords_3d![0] : p.coords_2d[0];
+      const y = use3d ? p.coords_3d![1] : p.coords_2d[1];
+      const z = use3d ? p.coords_3d![2] : 0;
+      worldPos.current.set(x, y, z).applyMatrix4(matrixWorld);
+      ndc.current.copy(worldPos.current).project(camera);
+      const dx = ndc.current.x - mouse.current.x;
+      const dy = ndc.current.y - mouse.current.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        bestId = String(p.id);
+      }
+    }
+    setHoveredId(bestId);
   });
 
   const handlePointerMove = (e: { pointer: { x: number; y: number } }) => {
@@ -139,8 +148,12 @@ export function Scene() {
       <mesh
         ref={planeRef}
         position={[0, 0, 0]}
+        onPointerEnter={() => { isPointerOverScene.current = true; }}
         onPointerMove={handlePointerMove}
-        onPointerLeave={() => setHoveredId(null)}
+        onPointerLeave={() => {
+          isPointerOverScene.current = false;
+          setHoveredId(null);
+        }}
         onPointerDown={() => {
           if (hoveredId != null) setSelectedId(hoveredId);
         }}
@@ -163,8 +176,12 @@ export function Scene() {
       {hoveredId != null && (() => {
         const p = points.find((x) => String(x.id) === String(hoveredId));
         if (!p) return null;
+        const use3d = p.coords_3d && p.coords_3d.length === 3;
+        const x = use3d ? p.coords_3d![0] : p.coords_2d[0];   // condition ? valueIfTrue : valueIfFalse
+        const y = use3d ? p.coords_3d![1] : p.coords_2d[1];
+        const z = use3d ? p.coords_3d![2] : 0;
         return (
-          <mesh position={[p.coords_2d[0], p.coords_2d[1], 0]}>
+          <mesh position={[x, y, z]}>
             <sphereGeometry args={[0.06, 16, 16]} />
             <meshBasicMaterial color="#fbbf24" transparent opacity={0.9} />
           </mesh>
