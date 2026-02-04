@@ -1,18 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { Settings, Upload } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
-
-const API_BASE = '';
+import { UploadPanel, type UploadStatus } from './UploadPanel';
 
 export function SettingsPanel() {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'ok' | 'error'>('idle');
-  const [uploadMessage, setUploadMessage] = useState<string>('');
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
+  const [uploadMessage, setUploadMessage] = useState('');
   const hoverTooltipMode = useAppStore((s) => s.hoverTooltipMode);
   const setHoverTooltipMode = useAppStore((s) => s.setHoverTooltipMode);
-  const refreshGalaxy = useAppStore((s) => s.refreshGalaxy);
 
   useEffect(() => {
     if (!open) return;
@@ -25,58 +22,14 @@ export function SettingsPanel() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
 
-  const handleUploadClick = () => {
-    setUploadStatus('idle');
-    setUploadMessage('');
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setUploadStatus('uploading');
-    setUploadMessage('');
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(`${API_BASE}/api/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail ?? 'Upload failed');
-      }
-      setUploadStatus('ok');
-      setUploadMessage(`"${file.name}" added to galaxy`);
-      refreshGalaxy();
-    } catch (err) {
-      setUploadStatus('error');
-      setUploadMessage(err instanceof Error ? err.message : 'Upload failed');
-    }
-  };
-
   return (
-    <div className="settings-panel" ref={panelRef}>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".wav,.mp3,.ogg,.flac,.m4a,.aac"
-        className="settings-file-input"
-        aria-label="Choose audio file"
-        onChange={handleFileChange}
-      />
+    <div className="control-panel" ref={panelRef}>
       <div className="settings-toolbar">
-        <button
-          type="button"
-          className="settings-trigger"
-          onClick={handleUploadClick}
-          disabled={uploadStatus === 'uploading'}
-          aria-label={uploadStatus === 'uploading' ? 'Uploading…' : 'Upload sound'}
-        >
-          <Upload size={22} aria-hidden />
-        </button>
+        <UploadPanel
+          uploadStatus={uploadStatus}
+          setUploadStatus={setUploadStatus}
+          setUploadMessage={setUploadMessage}
+        />
         <button
           type="button"
           className="settings-trigger"
