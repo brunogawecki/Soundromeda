@@ -89,9 +89,10 @@ export function Scene() {
     let bestDistSq = HOVER_NDC_RADIUS * HOVER_NDC_RADIUS;
     for (let i = 0; i < points.length; i++) {
       const p = points[i];
-      const x = p.coords_3d?.[0] ?? p.coords_2d[0];
-      const y = p.coords_3d?.[1] ?? p.coords_2d[1];
-      const z = p.coords_3d?.[2] ?? 0;
+      const use3d = p.coords_3d && p.coords_3d.length === 3;
+      const x = use3d ? p.coords_3d![0] : p.coords_2d[0];
+      const y = use3d ? p.coords_3d![1] : p.coords_2d[1];
+      const z = use3d ? p.coords_3d![2] : 0;
       worldPos.current.set(x, y, z).applyMatrix4(matrixWorld);
       ndc.current.copy(worldPos.current).project(camera);
       const dx = ndc.current.x - mouse.current.x;
@@ -175,9 +176,10 @@ export function Scene() {
       {hoveredId != null && (() => {
         const p = points.find((x) => String(x.id) === String(hoveredId));
         if (!p) return null;
-        const x = p.coords_3d?.[0] ?? p.coords_2d[0];
-        const y = p.coords_3d?.[1] ?? p.coords_2d[1];
-        const z = p.coords_3d?.[2] ?? 0;
+        const use3d = p.coords_3d && p.coords_3d.length === 3;
+        const x = use3d ? p.coords_3d![0] : p.coords_2d[0];   // condition ? valueIfTrue : valueIfFalse
+        const y = use3d ? p.coords_3d![1] : p.coords_2d[1];
+        const z = use3d ? p.coords_3d![2] : 0;
         return (
           <mesh position={[x, y, z]}>
             <sphereGeometry args={[0.06, 16, 16]} />
