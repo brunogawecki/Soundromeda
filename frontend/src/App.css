@@ -5,6 +5,7 @@
   padding: 0;
   overflow: hidden;
   position: relative;
+  background: #0c0c0e;
 }
 
 .app canvas {
@@ -42,12 +43,107 @@
   max-width: 80vw;
 }
 
-/* Settings */
-.settings-panel {
+/* Control panel (upload + settings) */
+.control-panel {
   position: absolute;
   top: 1rem;
   right: 1rem;
   z-index: 10;
+}
+
+.settings-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-upload-wrap {
+  position: relative;
+}
+
+/* Invisible bridge between button and list so hover doesn't drop when moving the mouse down */
+.settings-uploaded-list-bridge {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  min-height: 12px;
+  z-index: 19;
+}
+
+.settings-uploaded-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: auto;
+  min-width: 200px;
+  max-width: 280px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  background: rgba(30, 30, 40, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+}
+
+.settings-uploaded-list-title {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 0.35rem;
+}
+
+.settings-uploaded-list-empty {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.settings-uploaded-list-names {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  color: #e2e8f0;
+}
+
+.settings-uploaded-list-names li {
+  padding: 0;
+}
+
+.settings-uploaded-list-play {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-uploaded-list-play:hover {
+  background: rgba(148, 163, 184, 0.15);
+  color: #f97316;
+}
+
+.settings-uploaded-list-play span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-uploaded-list-play svg {
+  flex-shrink: 0;
 }
 
 .settings-trigger {
@@ -79,6 +175,15 @@
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.settings-upload-status {
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.settings-upload-pending {
+  color: #94a3b8;
 }
 
 .settings-group {
@@ -113,4 +218,55 @@
 
 .settings-option input {
   accent-color: #a78bfa;
+}
+
+.settings-file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-upload-ok {
+  font-size: 0.75rem;
+  color: #86efac;
+}
+
+.settings-upload-error {
+  font-size: 0.75rem;
+  color: #f87171;
+}
+
+.settings-action-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.settings-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0.5rem;
+  background: transparent;
+  color: #94a3b8;
+  border: 1px dashed #475569;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-action-btn:hover {
+  border-color: #f97316;
+  color: #f97316;
+  background: rgba(249, 115, 22, 0.1);
+}
+
+.settings-action-btn svg {
+  width: 14px;
+  height: 14px;
 }

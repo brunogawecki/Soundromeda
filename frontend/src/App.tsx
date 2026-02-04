@@ -31,8 +31,9 @@ function App() {
     <div className="app">
       <Canvas
         camera={{ position: [0, 0, 5], fov: 50 }}
-        gl={{ antialias: true }}
+        gl={{ antialias: true, alpha: false }}
       >
+        <color attach="background" args={['#0c0c0e']} />
         <Scene />
         <OrbitControls />
       </Canvas>

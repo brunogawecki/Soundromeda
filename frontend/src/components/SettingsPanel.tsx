@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { Settings } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { UploadPanel, type UploadStatus } from './UploadPanel';
 
 export function SettingsPanel() {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
+  const [uploadMessage, setUploadMessage] = useState('');
   const hoverTooltipMode = useAppStore((s) => s.hoverTooltipMode);
   const setHoverTooltipMode = useAppStore((s) => s.setHoverTooltipMode);
 
@@ -20,19 +23,33 @@ export function SettingsPanel() {
   }, [open]);
 
   return (
-    <div className="settings-panel" ref={panelRef}>
-      <button
-        type="button"
-        className="settings-trigger"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Settings"
-        aria-expanded={open}
-        aria-haspopup="true"
-      >
-        <Settings size={22} aria-hidden />
-      </button>
+    <div className="control-panel" ref={panelRef}>
+      <div className="settings-toolbar">
+        <UploadPanel
+          uploadStatus={uploadStatus}
+          setUploadStatus={setUploadStatus}
+          setUploadMessage={setUploadMessage}
+        />
+        <button
+          type="button"
+          className="settings-trigger"
+          onClick={() => setOpen((o) => !o)}
+          aria-label="Settings"
+          aria-expanded={open}
+          aria-haspopup="true"
+        >
+          <Settings size={22} aria-hidden />
+        </button>
+      </div>
       {open && (
         <div className="settings-dropdown" role="menu">
+          {uploadStatus !== 'idle' && (
+            <div className="settings-upload-status">
+              {uploadStatus === 'uploading' && <span className="settings-upload-pending">Uploading…</span>}
+              {uploadStatus === 'ok' && <span className="settings-upload-ok" role="status">{uploadMessage}</span>}
+              {uploadStatus === 'error' && <span className="settings-upload-error" role="alert">{uploadMessage}</span>}
+            </div>
+          )}
           <div className="settings-group">
             <span className="settings-label">Hover text</span>
             <div className="settings-options">

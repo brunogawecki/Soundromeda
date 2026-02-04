@@ -10,6 +10,13 @@ __pycache__/
 dist/
 build/
 
+# Backend
+backend/static/meta/
+backend/static/audio/
+backend/static/meta/umap_model.joblib
+backend/static/meta/builtin.json
+backend/static/meta/umap_model.joblib
+
 # Database
 *.db
 
@@ -30,3 +37,6 @@ htmlcov/
 
 # Audio samples
 UK_Garage_Samples/
+Kenny Beats - D.O.T.S Drumkit/
+*.json
+uploads/
