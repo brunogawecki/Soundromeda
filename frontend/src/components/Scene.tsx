@@ -38,6 +38,7 @@ export function Scene() {
   const planeRef = useRef<THREE.Mesh>(null);
   const [points, setPoints] = useState<SoundPoint[]>([]);
   const setHoveredId = useAppStore((s) => s.setHoveredId);
+  const setHoveredName = useAppStore((s) => s.setHoveredName);
   const hoveredId = useAppStore((s) => s.hoveredId);
   const setSelectedId = useAppStore((s) => s.setSelectedId);
   const setPlayingId = useAppStore((s) => s.setPlayingId);
@@ -81,11 +82,13 @@ export function Scene() {
   useFrame(() => {
     if (!isPointerOverScene.current) {
       setHoveredId(null);
+      setHoveredName(null);
       return;
     }
     if (points.length === 0 || !pointsRef.current) return;
     const matrixWorld = pointsRef.current.matrixWorld;
     let bestId: string | null = null;
+    let bestName: string | null = null;
     let bestDistSq = HOVER_NDC_RADIUS * HOVER_NDC_RADIUS;
     for (let i = 0; i < points.length; i++) {
       const p = points[i];
@@ -101,9 +104,11 @@ export function Scene() {
       if (distSq < bestDistSq) {
         bestDistSq = distSq;
         bestId = String(p.id);
+        bestName = p.name ?? null;
       }
     }
     setHoveredId(bestId);
+    setHoveredName(bestName);
   });
 
   const handlePointerMove = (e: { pointer: { x: number; y: number } }) => {
@@ -153,6 +158,7 @@ export function Scene() {
         onPointerLeave={() => {
           isPointerOverScene.current = false;
           setHoveredId(null);
+          setHoveredName(null);
         }}
         onPointerDown={() => {
           if (hoveredId != null) setSelectedId(hoveredId);

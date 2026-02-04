@@ -10,6 +10,7 @@ import './App.css';
 function App() {
   useAppStore(); // wire Zustand into the tree
   const startTone = useToneStart();
+  const hoveredName = useAppStore((s) => s.hoveredName);
 
   const onInteraction = useCallback(() => {
     startTone();
@@ -29,6 +30,11 @@ function App() {
         <Scene />
         <OrbitControls />
       </Canvas>
+      {hoveredName != null && (
+        <div className="sound-tooltip" aria-live="polite">
+          {hoveredName}
+        </div>
+      )}
       <UploadPanel />
     </div>
   );

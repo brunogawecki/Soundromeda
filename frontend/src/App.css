@@ -11,6 +11,25 @@
   display: block;
 }
 
+.sound-tooltip {
+  position: absolute;
+  bottom: 4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  background: rgba(30, 30, 40, 0.92);
+  color: #e2e8f0;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 5;
+  max-width: 80vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .upload-panel {
   position: absolute;
   bottom: 1rem;
