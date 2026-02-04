@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useAppStore } from '../store/useAppStore';
 import type { SoundPoint } from '../types/sounds';
-import { playAudioUrl } from '../useTone';
+import { playAudioUrl, useToneStart } from '../useTone';
 import * as THREE from 'three';
 
 const API_BASE = '';
@@ -41,12 +41,13 @@ export function Scene() {
   const setHoveredName = useAppStore((s) => s.setHoveredName);
   const setPointerPosition = useAppStore((s) => s.setPointerPosition);
   const hoveredId = useAppStore((s) => s.hoveredId);
+  const selectedId = useAppStore((s) => s.selectedId);
   const setSelectedId = useAppStore((s) => s.setSelectedId);
   const setPlayingId = useAppStore((s) => s.setPlayingId);
-  const selectedId = useAppStore((s) => s.selectedId);
   const galaxyVersion = useAppStore((s) => s.galaxyVersion);
 
   const { camera } = useThree();
+  const startTone = useToneStart();
   const mouse = useRef(new THREE.Vector2());
   /** True while pointer is over the scene (plane); used so useFrame doesn't overwrite hoveredId after onPointerLeave. */
   const isPointerOverScene = useRef(false);
@@ -63,11 +64,17 @@ export function Scene() {
     };
   }, [galaxyVersion]);
 
-  // Play selected sound with Tone.js; clear playingId when done
+  // Play sound when selected (clicked) with Tone.js; clear playingId when done
   useEffect(() => {
-    if (!selectedId || points.length === 0) return;
+    if (!selectedId || points.length === 0) {
+      setPlayingId(null);
+      return;
+    }
     const point = points.find((p) => String(p.id) === String(selectedId));
-    if (!point?.audioUrl) return;
+    if (!point?.audioUrl) {
+      setPlayingId(null);
+      return;
+    }
     setPlayingId(selectedId);
     const stop = playAudioUrl(point.audioUrl, () => setPlayingId(null));
     return () => {
@@ -165,6 +172,7 @@ export function Scene() {
           setPointerPosition(null, null);
         }}
         onPointerDown={() => {
+          startTone();
           if (hoveredId != null) setSelectedId(hoveredId);
         }}
       >
