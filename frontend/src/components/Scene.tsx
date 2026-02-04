@@ -38,6 +38,8 @@ export function Scene() {
   const planeRef = useRef<THREE.Mesh>(null);
   const [points, setPoints] = useState<SoundPoint[]>([]);
   const setHoveredId = useAppStore((s) => s.setHoveredId);
+  const setHoveredName = useAppStore((s) => s.setHoveredName);
+  const setPointerPosition = useAppStore((s) => s.setPointerPosition);
   const hoveredId = useAppStore((s) => s.hoveredId);
   const setSelectedId = useAppStore((s) => s.setSelectedId);
   const setPlayingId = useAppStore((s) => s.setPlayingId);
@@ -81,11 +83,14 @@ export function Scene() {
   useFrame(() => {
     if (!isPointerOverScene.current) {
       setHoveredId(null);
+      setHoveredName(null);
+      setPointerPosition(null, null);
       return;
     }
     if (points.length === 0 || !pointsRef.current) return;
     const matrixWorld = pointsRef.current.matrixWorld;
     let bestId: string | null = null;
+    let bestName: string | null = null;
     let bestDistSq = HOVER_NDC_RADIUS * HOVER_NDC_RADIUS;
     for (let i = 0; i < points.length; i++) {
       const p = points[i];
@@ -101,14 +106,17 @@ export function Scene() {
       if (distSq < bestDistSq) {
         bestDistSq = distSq;
         bestId = String(p.id);
+        bestName = p.name ?? null;
       }
     }
     setHoveredId(bestId);
+    setHoveredName(bestName);
   });
 
-  const handlePointerMove = (e: { pointer: { x: number; y: number } }) => {
+  const handlePointerMove = (e: { pointer: { x: number; y: number }; nativeEvent: { clientX: number; clientY: number } }) => {
     mouse.current.x = e.pointer.x;
     mouse.current.y = e.pointer.y;
+    setPointerPosition(e.nativeEvent.clientX, e.nativeEvent.clientY);
   };
 
   const positions = useMemo(() => {
@@ -153,6 +161,8 @@ export function Scene() {
         onPointerLeave={() => {
           isPointerOverScene.current = false;
           setHoveredId(null);
+          setHoveredName(null);
+          setPointerPosition(null, null);
         }}
         onPointerDown={() => {
           if (hoveredId != null) setSelectedId(hoveredId);
