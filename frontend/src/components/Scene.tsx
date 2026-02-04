@@ -240,8 +240,7 @@ export function Scene() {
         const z = use3d ? p.coords_3d![2] : 0;
         return (
           <mesh position={[x, y, z]}>
-            {/* <sphereGeometry args={[0.15, 24, 24]} /> */}
-            <sphereGeometry args={[0.15, 6, 6]} />
+            <sphereGeometry args={[0.15, 10, 10]} />
             <meshBasicMaterial color="#f97316" transparent opacity={0.25} depthWrite={false} />
           </mesh>
         );
