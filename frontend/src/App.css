@@ -102,10 +102,38 @@
 }
 
 .settings-uploaded-list-names li {
-  padding: 0.2rem 0;
+  padding: 0;
+}
+
+.settings-uploaded-list-play {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-uploaded-list-play:hover {
+  background: rgba(148, 163, 184, 0.15);
+  color: #f97316;
+}
+
+.settings-uploaded-list-play span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.settings-uploaded-list-play svg {
+  flex-shrink: 0;
 }
 
 .settings-trigger {

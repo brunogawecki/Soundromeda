@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, Play } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { playAudioUrl } from '../useTone';
 
 const API_BASE = '';
 
 interface UploadedFile {
   name: string;
+  audioUrl: string;
 }
 
 export type UploadStatus = 'idle' | 'uploading' | 'ok' | 'error';
@@ -30,7 +32,12 @@ export function UploadPanel({ uploadStatus, setUploadStatus, setUploadMessage }:
       .then((data) => {
         const points = Array.isArray(data?.points) ? data.points : [];
         if (!cancelled) {
-          setUploadedFiles(points.map((p: { name?: string }) => ({ name: p.name ?? 'Unknown' })));
+          setUploadedFiles(
+            points.map((p: { name?: string; audioUrl?: string }) => ({
+              name: p.name ?? 'Unknown',
+              audioUrl: p.audioUrl ?? '',
+            }))
+          );
         }
       })
       .catch(() => {
@@ -105,7 +112,21 @@ export function UploadPanel({ uploadStatus, setUploadStatus, setUploadMessage }:
             ) : (
               <ul className="settings-uploaded-list-names">
                 {uploadedFiles.map((f, i) => (
-                  <li key={i}>{f.name}</li>
+                  <li key={i}>
+                    <button
+                      type="button"
+                      className="settings-uploaded-list-play"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (f.audioUrl) playAudioUrl(f.audioUrl);
+                      }}
+                      title={`Play ${f.name}`}
+                      aria-label={`Play ${f.name}`}
+                    >
+                      <Play size={14} aria-hidden />
+                      <span>{f.name}</span>
+                    </button>
+                  </li>
                 ))}
               </ul>
             )}
