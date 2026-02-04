@@ -46,6 +46,8 @@ export function Scene() {
 
   const { camera } = useThree();
   const mouse = useRef(new THREE.Vector2());
+  /** True while pointer is over the scene (plane); used so useFrame doesn't overwrite hoveredId after onPointerLeave. */
+  const isPointerOverScene = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,6 +79,10 @@ export function Scene() {
   const ndc = useRef(new THREE.Vector3());
 
   useFrame(() => {
+    if (!isPointerOverScene.current) {
+      setHoveredId(null);
+      return;
+    }
     if (points.length === 0 || !pointsRef.current) return;
     const matrixWorld = pointsRef.current.matrixWorld;
     let bestId: string | null = null;
@@ -141,8 +147,12 @@ export function Scene() {
       <mesh
         ref={planeRef}
         position={[0, 0, 0]}
+        onPointerEnter={() => { isPointerOverScene.current = true; }}
         onPointerMove={handlePointerMove}
-        onPointerLeave={() => setHoveredId(null)}
+        onPointerLeave={() => {
+          isPointerOverScene.current = false;
+          setHoveredId(null);
+        }}
         onPointerDown={() => {
           if (hoveredId != null) setSelectedId(hoveredId);
         }}
