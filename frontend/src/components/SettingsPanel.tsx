@@ -1,12 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
-import { Settings } from 'lucide-react';
+import { Settings, Upload } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+
+const API_BASE = '';
 
 export function SettingsPanel() {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'ok' | 'error'>('idle');
+  const [uploadMessage, setUploadMessage] = useState<string>('');
   const hoverTooltipMode = useAppStore((s) => s.hoverTooltipMode);
   const setHoverTooltipMode = useAppStore((s) => s.setHoverTooltipMode);
+  const refreshGalaxy = useAppStore((s) => s.refreshGalaxy);
 
   useEffect(() => {
     if (!open) return;
@@ -18,6 +24,38 @@ export function SettingsPanel() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
+
+  const handleUploadClick = () => {
+    setUploadStatus('idle');
+    setUploadMessage('');
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadStatus('uploading');
+    setUploadMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API_BASE}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail ?? 'Upload failed');
+      }
+      setUploadStatus('ok');
+      setUploadMessage(`"${file.name}" added to galaxy`);
+      refreshGalaxy();
+    } catch (err) {
+      setUploadStatus('error');
+      setUploadMessage(err instanceof Error ? err.message : 'Upload failed');
+    }
+  };
 
   return (
     <div className="settings-panel" ref={panelRef}>
@@ -33,6 +71,32 @@ export function SettingsPanel() {
       </button>
       {open && (
         <div className="settings-dropdown" role="menu">
+          <div className="settings-group">
+            <span className="settings-label">Upload sound</span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".wav,.mp3,.ogg,.flac,.m4a,.aac"
+              className="settings-file-input"
+              aria-label="Choose audio file"
+              onChange={handleFileChange}
+            />
+            <button
+              type="button"
+              className="settings-upload-btn"
+              onClick={handleUploadClick}
+              disabled={uploadStatus === 'uploading'}
+            >
+              <Upload size={16} aria-hidden />
+              <span>{uploadStatus === 'uploading' ? 'Uploading…' : 'Choose file'}</span>
+            </button>
+            {uploadStatus === 'ok' && (
+              <span className="settings-upload-ok" role="status">{uploadMessage}</span>
+            )}
+            {uploadStatus === 'error' && (
+              <span className="settings-upload-error" role="alert">{uploadMessage}</span>
+            )}
+          </div>
           <div className="settings-group">
             <span className="settings-label">Hover text</span>
             <div className="settings-options">

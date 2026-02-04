@@ -68,19 +68,21 @@ async def upload_sound(
     content = await file.read()
     dest_path.write_bytes(content)
 
-    # Run soundspace embedding
+    # Run soundspace embedding (uses saved UMAP model so new sound maps into existing galaxy)
     try:
         coords = embed_single_sample(dest_path)
     except SoundSpaceError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
     coords_2d = coords[:2]
+    coords_3d = coords[:3] if len(coords) >= 3 else [coords[0], coords[1], 0.0]
 
     # Persist to DB
     audio_path = f"uploads/{safe_name}"
     sound = Sound(
         name=file.filename or safe_name,
         coords_2d=coords_2d,
+        coords_3d=coords_3d,
         audio_path=audio_path,
     )
     db.add(sound)
@@ -91,6 +93,7 @@ async def upload_sound(
     return Point(
         id=sound.id,
         coords_2d=sound.coords_2d,
+        coords_3d=sound.coords_3d,
         name=sound.name,
         audioUrl=f"{base}/static/{sound.audio_path}",
     )

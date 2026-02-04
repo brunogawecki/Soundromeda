@@ -5,6 +5,7 @@
   padding: 0;
   overflow: hidden;
   position: relative;
+  background: #0c0c0e;
 }
 
 .app canvas {
@@ -113,4 +114,46 @@
 
 .settings-option input {
   accent-color: #a78bfa;
+}
+
+.settings-file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  color: #e2e8f0;
+  background: rgba(167, 139, 250, 0.2);
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.settings-upload-btn:hover:not(:disabled) {
+  background: rgba(167, 139, 250, 0.3);
+  border-color: rgba(167, 139, 250, 0.6);
+}
+
+.settings-upload-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.settings-upload-ok {
+  font-size: 0.75rem;
+  color: #86efac;
+}
+
+.settings-upload-error {
+  font-size: 0.75rem;
+  color: #f87171;
 }
