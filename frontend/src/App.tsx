@@ -4,7 +4,6 @@ import { OrbitControls } from '@react-three/drei';
 import { useAppStore } from './store/useAppStore';
 import { useToneStart } from './useTone';
 import { Scene } from './components/Scene';
-import { UploadPanel } from './components/UploadPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import './App.css';
 
@@ -52,7 +51,6 @@ function App() {
         </div>
       )}
       <SettingsPanel />
-      <UploadPanel />
     </div>
   );
 }
