@@ -50,12 +50,14 @@ function SettingsToolbar({
   setUploadMessage,
   isDropdownOpen,
   onToggleDropdown,
+  onCloseSettings,
 }: {
   uploadStatus: UploadStatus;
   setUploadStatus: (s: UploadStatus) => void;
   setUploadMessage: (m: string) => void;
   isDropdownOpen: boolean;
   onToggleDropdown: () => void;
+  onCloseSettings: () => void;
 }) {
   return (
     <div className="settings-toolbar">
@@ -63,6 +65,7 @@ function SettingsToolbar({
         uploadStatus={uploadStatus}
         setUploadStatus={setUploadStatus}
         setUploadMessage={setUploadMessage}
+        onUploadPanelOpen={onCloseSettings}
       />
       <button
         type="button"
@@ -173,6 +176,7 @@ export function SettingsPanel() {
         setUploadMessage={logic.setUploadMessage}
         isDropdownOpen={logic.isDropdownOpen}
         onToggleDropdown={() => logic.setIsDropdownOpen((o) => !o)}
+        onCloseSettings={() => logic.setIsDropdownOpen(false)}
       />
       {logic.isDropdownOpen && (
         <SettingsDropdown

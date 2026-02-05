@@ -76,16 +76,67 @@
   top: calc(100% + 6px);
   right: 0;
   left: auto;
-  min-width: 200px;
-  max-width: 280px;
-  max-height: 240px;
+  width: 300px;
+  min-width: 300px;
+  max-width: 300px;
+  max-height: 420px;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 0.5rem 0.75rem;
   background: rgba(30, 30, 40, 0.95);
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   z-index: 20;
+}
+
+.settings-upload-dropdown-wrapper {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 0;
+  min-height: 0;
+}
+
+.settings-message-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.settings-message-row .settings-upload-panel-message,
+.settings-message-row .settings-upload-error {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-message-dismiss {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.settings-message-dismiss:hover {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.settings-upload-panel-message {
+  font-size: 0.75rem;
+  color: #86efac;
+  margin: 0 0 0.5rem 0;
+  padding: 0.25rem 0;
 }
 
 .settings-uploaded-list-title {
@@ -126,9 +177,19 @@
   background: transparent;
   color: #e2e8f0;
   font-size: 0.85rem;
+  line-height: 1.2;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.settings-uploaded-list-play:focus {
+  outline: none;
+}
+
+.settings-uploaded-list-play:focus-visible {
+  outline: 2px solid rgba(249, 115, 22, 0.8);
+  outline-offset: 2px;
 }
 
 .settings-uploaded-list-play:hover {
@@ -144,6 +205,39 @@
 
 .settings-uploaded-list-play svg {
   flex-shrink: 0;
+}
+
+/* Match .settings-uploaded-list-play row height exactly (same padding, icon size, line-height) */
+.settings-delete-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  color: #e2e8f0;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.settings-delete-checkbox-row input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: #f87171;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.settings-delete-checkbox-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .settings-trigger {
@@ -251,6 +345,7 @@
 
 .settings-action-btn {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -263,6 +358,13 @@
   font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.settings-action-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-action-btn:hover {
@@ -274,6 +376,115 @@
 .settings-action-btn svg {
   width: 14px;
   height: 14px;
+}
+
+.settings-action-btn--danger {
+  border-color: #f87171;
+  color: #f87171;
+}
+
+.settings-action-btn--danger:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: rgba(248, 113, 113, 0.15);
+}
+
+.settings-action-btn--delete {
+  border-color: rgba(148, 163, 184, 0.4);
+  color: #94a3b8;
+}
+
+.settings-action-btn--delete:hover {
+  border-color: #f87171;
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.settings-uploaded-list--with-delete {
+  max-height: 420px;
+}
+
+.settings-delete-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.settings-restore-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.settings-restore-section .settings-uploaded-list-title {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.settings-action-btn--restore {
+  border-color: rgba(148, 163, 184, 0.4);
+  color: #94a3b8;
+}
+
+.settings-action-btn--restore:hover {
+  border-color: #34d399;
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.settings-delete-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-delete-buttons-row {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.settings-delete-buttons-row .settings-action-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-delete-buttons-row .settings-action-btn span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-delete-confirm {
+  padding: 0.25rem 0;
+}
+
+.settings-delete-confirm-text {
+  font-size: 0.85rem;
+  color: #e2e8f0;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.4;
+}
+
+.settings-delete-selection-list {
+  max-height: 160px;
+  overflow-y: auto;
+  margin-bottom: 0.5rem;
+}
+
+.settings-delete-group-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.settings-delete-group-label:first-child {
+  margin-top: 0;
 }
 
 .settings-volume-header {
