@@ -44,7 +44,7 @@ async function fetchAllBuiltinIds(): Promise<string[]> {
   return Array.isArray(data?.ids) ? data.ids : [];
 }
 
-export type ConfirmAction = null | 'delete-all-builtin' | 'delete-all-user';
+export type ConfirmAction = null | 'delete-all-builtin' | 'delete-all-user' | 'delete-selected';
 
 function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +184,7 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
         body: JSON.stringify({ ids: userIdsInt }),
       });
       if (!bulkRes.ok) throw new Error('Failed to delete user sounds');
+      setConfirmAction(null);
       setSelectionMode(false);
       setSelectedIds(new Set());
       refreshGalaxy();
@@ -303,22 +304,25 @@ function UploadDropdown({
     <div className="settings-upload-dropdown-wrapper">
       <div className="settings-uploaded-list-bridge" aria-hidden />
       <div className="settings-uploaded-list settings-uploaded-list--with-delete" role="tooltip">
-        {panelMessage && (
-          <p className="settings-upload-panel-message" role="status">{panelMessage}</p>
-        )}
         {confirmAction !== null ? (
           <div className="settings-delete-confirm">
             <p className="settings-delete-confirm-text">
               {confirmAction === 'delete-all-builtin' &&
-                'Hide all built-in sounds? You can restore them later.'}
+                'This will hide all built-in sounds. You can restore them later.'}
               {confirmAction === 'delete-all-user' &&
-                'Permanently delete all your uploaded sounds? This cannot be undone.'}
+                'This will permanently delete all your uploaded sounds. This cannot be undone.'}
+              {confirmAction === 'delete-selected' &&
+                `Delete ${selectedIds.size} sound(s)? User sounds will be permanently deleted.`}
             </p>
             <div className="settings-action-row">
               <button
                 type="button"
                 className="settings-action-btn settings-action-btn--danger"
-                onClick={() => (confirmAction === 'delete-all-builtin' ? deleteAllBuiltin() : deleteAllUser())}
+                onClick={() => {
+                  if (confirmAction === 'delete-all-builtin') deleteAllBuiltin();
+                  else if (confirmAction === 'delete-all-user') deleteAllUser();
+                  else if (confirmAction === 'delete-selected') deleteSelected();
+                }}
               >
                 Yes
               </button>
@@ -386,6 +390,9 @@ function UploadDropdown({
             )}
             <div className="settings-delete-section">
               <span className="settings-uploaded-list-title">Delete</span>
+              {panelMessage && (
+                <p className="settings-upload-panel-message" role="status">{panelMessage}</p>
+              )}
               <div className="settings-delete-buttons">
                 <button
                   type="button"
@@ -412,7 +419,7 @@ function UploadDropdown({
                     <button
                       type="button"
                       className="settings-action-btn settings-action-btn--danger"
-                      onClick={deleteSelected}
+                      onClick={() => setConfirmAction('delete-selected')}
                       disabled={selectedIds.size === 0}
                     >
                       <Trash2 size={14} />
