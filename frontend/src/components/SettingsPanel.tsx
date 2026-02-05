@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Settings } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { UploadPanel, type UploadStatus } from './UploadPanel';
+import { setMasterVolume } from '../useTone';
 
 // Logic (state, click-outside, store)
 
@@ -12,6 +13,8 @@ function useSettingsPanelLogic() {
   const [uploadMessage, setUploadMessage] = useState('');
   const hoverTooltipMode = useAppStore((s) => s.hoverTooltipMode);
   const setHoverTooltipMode = useAppStore((s) => s.setHoverTooltipMode);
+  const volume = useAppStore((s) => s.volume);
+  const setVolume = useAppStore((s) => s.setVolume);
 
   useEffect(() => {
     if (!isDropdownOpen) return;
@@ -34,6 +37,8 @@ function useSettingsPanelLogic() {
     setUploadMessage,
     hoverTooltipMode,
     setHoverTooltipMode,
+    volume,
+    setVolume,
   };
 }
 
@@ -114,10 +119,44 @@ function HoverTooltipOptions({ hoverTooltipMode, setHoverTooltipMode }: { hoverT
   );
 }
 
-function SettingsDropdown({ uploadStatus, uploadMessage, hoverTooltipMode, setHoverTooltipMode }: { uploadStatus: UploadStatus; uploadMessage: string; hoverTooltipMode: string; setHoverTooltipMode: (mode: 'follow' | 'fixed') => void }) {
+function VolumeControl({ volume, setVolume }: { volume: number; setVolume: (volume: number) => void }) {
+  // Sync volume state with master volume node
+  useEffect(() => {
+    setMasterVolume(volume);
+  }, [volume]);
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+  };
+
+  const volumePercent = Math.round(volume * 100);
+
+  return (
+    <div className="settings-group">
+      <div className="settings-volume-header">
+        <span className="settings-label">Volume</span>
+        <span className="settings-volume-value">{volumePercent}%</span>
+      </div>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
+        value={volume}
+        onChange={handleVolumeChange}
+        className="settings-volume-slider"
+        aria-label="Volume"
+      />
+    </div>
+  );
+}
+
+function SettingsDropdown({ uploadStatus, uploadMessage, hoverTooltipMode, setHoverTooltipMode, volume, setVolume }: { uploadStatus: UploadStatus; uploadMessage: string; hoverTooltipMode: string; setHoverTooltipMode: (mode: 'follow' | 'fixed') => void; volume: number; setVolume: (volume: number) => void }) {
   return (
     <div className="settings-dropdown" role="menu">
       <UploadStatusMessage uploadStatus={uploadStatus} uploadMessage={uploadMessage} />
+      <VolumeControl volume={volume} setVolume={setVolume} />
       <HoverTooltipOptions hoverTooltipMode={hoverTooltipMode} setHoverTooltipMode={setHoverTooltipMode} />
     </div>
   );
@@ -141,6 +180,8 @@ export function SettingsPanel() {
           uploadMessage={logic.uploadMessage}
           hoverTooltipMode={logic.hoverTooltipMode}
           setHoverTooltipMode={logic.setHoverTooltipMode}
+          volume={logic.volume}
+          setVolume={logic.setVolume}
         />
       )}
     </div>

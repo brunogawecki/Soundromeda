@@ -10,6 +10,7 @@ interface AppState {
   pointerX: number | null;
   pointerY: number | null;
   hoverTooltipMode: HoverTooltipMode;
+  volume: number;
   galaxyVersion: number;
   /** audioUrl of the sound hovered in the uploaded-files list; Scene highlights that point. */
   highlightedListAudioUrl: string | null;
@@ -19,6 +20,7 @@ interface AppState {
   setHoveredName: (name: string | null) => void;
   setPointerPosition: (x: number | null, y: number | null) => void;
   setHoverTooltipMode: (mode: HoverTooltipMode) => void;
+  setVolume: (volume: number) => void;
   setHighlightedListAudioUrl: (url: string | null) => void;
   refreshGalaxy: () => void;
 }
@@ -31,6 +33,7 @@ export const useAppStore = create<AppState>((set) => ({
   pointerX: null,
   pointerY: null,
   hoverTooltipMode: 'follow',
+  volume: 1.0,
   galaxyVersion: 0,
   highlightedListAudioUrl: null,
   setSelectedId: (id) => set({ selectedId: id }),
@@ -39,6 +42,7 @@ export const useAppStore = create<AppState>((set) => ({
   setHoveredName: (name) => set({ hoveredName: name }),
   setPointerPosition: (x, y) => set({ pointerX: x, pointerY: y }),
   setHoverTooltipMode: (mode) => set({ hoverTooltipMode: mode }),
+  setVolume: (volume) => set({ volume }),
   setHighlightedListAudioUrl: (url) => set({ highlightedListAudioUrl: url }),
   refreshGalaxy: () => set((s) => ({ galaxyVersion: s.galaxyVersion + 1 })),
 }));

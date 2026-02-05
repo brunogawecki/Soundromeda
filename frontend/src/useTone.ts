@@ -2,10 +2,6 @@ import * as Tone from 'tone';
 
 let started = false;
 
-/**
- * Resume Tone.js context on first user interaction (required for browser autoplay).
- * Call once when the app mounts or on first click.
- */
 export function useToneStart(): () => void {
   return () => {
     if (started) return;
@@ -17,11 +13,22 @@ export function useToneStart(): () => void {
 
 let activePlayer: Tone.Player | null = null;
 let playGeneration = 0;
+let masterVolume: Tone.Volume | null = null;
 
-/**
- * Play an audio URL with Tone.js Player. Call after Tone.start().
- * Returns a function to stop playback. Stops any previously playing sound.
- */
+function getMasterVolume(): Tone.Volume {
+  if (!masterVolume) {
+    masterVolume = new Tone.Volume(0).toDestination();
+  }
+  return masterVolume;
+}
+
+export function setMasterVolume(volume: number): void {
+  const vol = getMasterVolume();
+  // Convert linear 0-1 to dB: 0 = -Infinity (mute), 1 = 0dB (full)
+  const db = volume <= 0 ? -Infinity : Tone.gainToDb(volume);
+  vol.volume.value = db;
+}
+
 export function playAudioUrl(audioUrl: string, onEnded?: () => void): () => void {
   const stop = () => {
     playGeneration++;
@@ -45,7 +52,7 @@ export function playAudioUrl(audioUrl: string, onEnded?: () => void): () => void
     const player = new Tone.Player(audioUrl, () => {
       if (myGen !== playGeneration) return;
       activePlayer = player;
-      player.toDestination();
+      player.connect(getMasterVolume());
       player.onstop = () => {
         activePlayer = null;
         player.dispose();
