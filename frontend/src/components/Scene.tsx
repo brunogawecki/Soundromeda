@@ -7,23 +7,29 @@ import * as THREE from 'three';
 
 const API_BASE = '';
 
+/** Normalize API response to SoundPoint[]; logs and returns [] when response is not ok. */
+async function parsePointsResponse(res: Response, source?: string): Promise<SoundPoint[]> {
+  if (!res.ok) {
+    if (source) {
+      console.error(`Failed to fetch ${source} sounds:`, res.status, await res.text().catch(() => ''));
+    }
+    return [];
+  }
+  const data = await res.json();
+  return Array.isArray(data?.points) ? data.points : [];
+}
+
 async function fetchAllPoints(): Promise<{ builtin: SoundPoint[]; user: SoundPoint[]; all: SoundPoint[] }> {
   try {
     const [builtinResponse, userResponse] = await Promise.all([
       fetch(`${API_BASE}/api/sounds?source=builtin`),
       fetch(`${API_BASE}/api/sounds?source=user`),
     ]);
-    const builtin = builtinResponse.ok ? await builtinResponse.json() : { points: [] };
-    const user = userResponse.ok ? await userResponse.json() : { points: [] };
-    if (!builtinResponse.ok) {
-      console.error('Failed to fetch builtin sounds:', builtinResponse.status, await builtinResponse.text().catch(() => ''));
-    }
-    if (!userResponse.ok) {
-      console.error('Failed to fetch user sounds:', userResponse.status, await userResponse.text().catch(() => ''));
-    }
-    const builtinList: SoundPoint[] = Array.isArray(builtin.points) ? builtin.points : [];
-    const userList: SoundPoint[] = Array.isArray(user.points) ? user.points : [];
-    return { builtin: builtinList, user: userList, all: [...builtinList, ...userList] };
+    const [builtin, user] = await Promise.all([
+      parsePointsResponse(builtinResponse, 'builtin'),
+      parsePointsResponse(userResponse, 'user'),
+    ]);
+    return { builtin, user, all: [...builtin, ...user] };
   } catch (err) {
     console.error('Failed to fetch sounds:', err);
     return { builtin: [], user: [], all: [] };
@@ -32,6 +38,13 @@ async function fetchAllPoints(): Promise<{ builtin: SoundPoint[]; user: SoundPoi
 
 /** Hit-test radius in normalized device coords [-1,1]; points within this distance of cursor count as hovered. */
 const HOVER_NDC_RADIUS = 0.08;
+
+function getSoundPointPosition3D(soundPoint: SoundPoint): [number, number, number] {
+  if (soundPoint.coords_3d && soundPoint.coords_3d.length === 3) {
+    return [soundPoint.coords_3d[0], soundPoint.coords_3d[1], soundPoint.coords_3d[2]];
+  }
+  return [soundPoint.coords_2d[0], soundPoint.coords_2d[1], 0];
+}
 
 export function Scene() {
   const builtinPointsRef = useRef<THREE.Points>(null);
@@ -91,8 +104,8 @@ export function Scene() {
   }, [selectedId, points, setPlayingId]);
 
   // Reusable vectors for hit-test (avoid per-frame allocations)
-  const worldPos = useRef(new THREE.Vector3());
-  const ndc = useRef(new THREE.Vector3());
+  const normalizedDeviceCoords = useRef(new THREE.Vector3());
+  const worldPosition = useRef(new THREE.Vector3());
 
   useFrame(() => {
     if (!isPointerOverScene.current) {
@@ -107,20 +120,17 @@ export function Scene() {
     let bestName: string | null = null;
     let bestDistSq = HOVER_NDC_RADIUS * HOVER_NDC_RADIUS;
     for (let i = 0; i < points.length; i++) {
-      const p = points[i];
-      const use3d = p.coords_3d && p.coords_3d.length === 3;
-      const x = use3d ? p.coords_3d![0] : p.coords_2d[0];
-      const y = use3d ? p.coords_3d![1] : p.coords_2d[1];
-      const z = use3d ? p.coords_3d![2] : 0;
-      worldPos.current.set(x, y, z).applyMatrix4(matrixWorld);
-      ndc.current.copy(worldPos.current).project(camera);
-      const dx = ndc.current.x - mouse.current.x;
-      const dy = ndc.current.y - mouse.current.y;
+      const point = points[i];
+      const [x, y, z] = getSoundPointPosition3D(point);
+      worldPosition.current.set(x, y, z).applyMatrix4(matrixWorld);
+      normalizedDeviceCoords.current.copy(worldPosition.current).project(camera);
+      const dx = normalizedDeviceCoords.current.x - mouse.current.x;
+      const dy = normalizedDeviceCoords.current.y - mouse.current.y;
       const distSq = dx * dx + dy * dy;
       if (distSq < bestDistSq) {
         bestDistSq = distSq;
-        bestId = String(p.id);
-        bestName = p.name ?? null;
+        bestId = String(point.id);
+        bestName = point.name ?? null;
       }
     }
     setHoveredId(bestId);
@@ -133,18 +143,13 @@ export function Scene() {
     setPointerPosition(e.nativeEvent.clientX, e.nativeEvent.clientY);
   };
 
-  const soundPointsToPositions = (list: SoundPoint[]) => {
-    const pos = new Float32Array(list.length * 3);
-    list.forEach((p, i) => {
-      if (p.coords_3d && p.coords_3d.length === 3) {
-        pos[i * 3] = p.coords_3d[0];
-        pos[i * 3 + 1] = p.coords_3d[1];
-        pos[i * 3 + 2] = p.coords_3d[2];
-      } else {
-        pos[i * 3] = p.coords_2d[0];
-        pos[i * 3 + 1] = p.coords_2d[1];
-        pos[i * 3 + 2] = 0;
-      }
+  const soundPointsToPositions = (soundPoints: SoundPoint[]) => {
+    const pos = new Float32Array(soundPoints.length * 3);
+    soundPoints.forEach((point, i) => {
+      const [x, y, z] = getSoundPointPosition3D(point);
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = z;
     });
     return pos;
   };
@@ -218,12 +223,9 @@ export function Scene() {
         </points>
       )}
       {hoveredId != null && (() => {
-        const p = points.find((x) => String(x.id) === String(hoveredId));
-        if (!p) return null;
-        const use3d = p.coords_3d && p.coords_3d.length === 3;
-        const x = use3d ? p.coords_3d![0] : p.coords_2d[0];   // condition ? valueIfTrue : valueIfFalse
-        const y = use3d ? p.coords_3d![1] : p.coords_2d[1];
-        const z = use3d ? p.coords_3d![2] : 0;
+        const point = points.find((x) => String(x.id) === String(hoveredId));
+        if (!point) return null;
+        const [x, y, z] = getSoundPointPosition3D(point);
         return (
           <mesh position={[x, y, z]}>
             <sphereGeometry args={[0.06, 16, 16]} />
@@ -232,12 +234,9 @@ export function Scene() {
         );
       })()}
       {highlightedListAudioUrl != null && (() => {
-        const p = points.find((x) => x.audioUrl === highlightedListAudioUrl);
-        if (!p) return null;
-        const use3d = p.coords_3d && p.coords_3d.length === 3;
-        const x = use3d ? p.coords_3d![0] : p.coords_2d[0];
-        const y = use3d ? p.coords_3d![1] : p.coords_2d[1];
-        const z = use3d ? p.coords_3d![2] : 0;
+        const point = points.find((x) => x.audioUrl === highlightedListAudioUrl);
+        if (!point) return null;
+        const [x, y, z] = getSoundPointPosition3D(point);
         return (
           <mesh position={[x, y, z]}>
             <sphereGeometry args={[0.15, 10, 10]} />
