@@ -117,8 +117,8 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     const failCount = results.filter((r) => r.status === 'rejected').length;
 
     if (successCount > 0) {
-      setUploadStatus('ok');
-      setUploadMessage(`Added ${successCount} sound${successCount !== 1 ? 's' : ''}`);
+      setUploadStatus('idle');
+      setUploadMessage('');
       refreshGalaxy();
       fetchUserUploadedSounds().then(setUploadedFiles).catch(() => {});
     } else {
