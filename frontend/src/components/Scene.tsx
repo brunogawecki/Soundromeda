@@ -5,6 +5,8 @@ import type { SoundPoint } from '../types/sounds';
 import { playAudioUrl, useToneStart } from '../useTone';
 import * as THREE from 'three';
 
+// --- Logic ---
+
 const API_BASE = '';
 
 /** Normalize API response to SoundPoint[]; logs and returns [] when response is not ok. */
@@ -37,7 +39,7 @@ async function fetchAllPoints(): Promise<{ builtin: SoundPoint[]; user: SoundPoi
 }
 
 /** Hit-test radius in normalized device coords [-1,1]; points within this distance of cursor count as hovered. */
-const HOVER_NDC_RADIUS = 0.08;
+const HOVER_NDC_RADIUS = 0.04;
 
 function getSoundPointPosition3D(soundPoint: SoundPoint): [number, number, number] {
   if (soundPoint.coords_3d && soundPoint.coords_3d.length === 3) {
@@ -46,12 +48,53 @@ function getSoundPointPosition3D(soundPoint: SoundPoint): [number, number, numbe
   return [soundPoint.coords_2d[0], soundPoint.coords_2d[1], 0];
 }
 
-export function Scene() {
-  const builtinPointsRef = useRef<THREE.Points>(null);
+function findClosestSoundPointToCursor(
+  points: SoundPoint[],
+  mouseNdc: THREE.Vector2,
+  camera: THREE.Camera,
+  matrixWorld: THREE.Matrix4,
+  worldPositionRef: { current: THREE.Vector3 },
+  normalizedDeviceCoordsRef: { current: THREE.Vector3 },
+): { id: string | null; name: string | null } {
+  let bestId: string | null = null;
+  let bestName: string | null = null;
+  let bestDistSq = HOVER_NDC_RADIUS * HOVER_NDC_RADIUS;
+  for (let i = 0; i < points.length; i++) {
+    const point = points[i];
+    const [x, y, z] = getSoundPointPosition3D(point);
+    worldPositionRef.current.set(x, y, z).applyMatrix4(matrixWorld);
+    normalizedDeviceCoordsRef.current.copy(worldPositionRef.current).project(camera);
+    const dx = normalizedDeviceCoordsRef.current.x - mouseNdc.x;
+    const dy = normalizedDeviceCoordsRef.current.y - mouseNdc.y;
+    const distSq = dx * dx + dy * dy;
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      bestId = String(point.id);
+      bestName = point.name ?? null;
+    }
+  }
+  return { id: bestId, name: bestName };
+}
+
+function soundPointsToPositions(soundPoints: SoundPoint[]): Float32Array {
+  const pos = new Float32Array(soundPoints.length * 3);
+  soundPoints.forEach((point, i) => {
+    const [x, y, z] = getSoundPointPosition3D(point);
+    pos[i * 3] = x;
+    pos[i * 3 + 1] = y;
+    pos[i * 3 + 2] = z;
+  });
+  return pos;
+}
+
+/** All scene state, refs, effects, and handlers; no JSX. Call from within Canvas (R3F). */
+function useSceneLogic() {
+  const primaryPointsRef = useRef<THREE.Points>(null);
   const planeRef = useRef<THREE.Mesh>(null);
   const [points, setPoints] = useState<SoundPoint[]>([]);
   const [builtinPoints, setBuiltinPoints] = useState<SoundPoint[]>([]);
   const [userPoints, setUserPoints] = useState<SoundPoint[]>([]);
+
   const setHoveredId = useAppStore((s) => s.setHoveredId);
   const setHoveredName = useAppStore((s) => s.setHoveredName);
   const setPointerPosition = useAppStore((s) => s.setPointerPosition);
@@ -65,8 +108,9 @@ export function Scene() {
   const { camera } = useThree();
   const startTone = useToneStart();
   const mouse = useRef(new THREE.Vector2());
-  /** True while pointer is over the scene (plane); used so useFrame doesn't overwrite hoveredId after onPointerLeave. */
   const isPointerOverScene = useRef(false);
+  const worldPosition = useRef(new THREE.Vector3());
+  const normalizedDeviceCoords = useRef(new THREE.Vector3());
 
   useEffect(() => {
     let cancelled = false;
@@ -84,7 +128,6 @@ export function Scene() {
     };
   }, [galaxyVersion]);
 
-  // Play sound when selected (clicked) with Tone.js; clear playingId when done
   useEffect(() => {
     if (!selectedId || points.length === 0) {
       setPlayingId(null);
@@ -103,10 +146,6 @@ export function Scene() {
     };
   }, [selectedId, points, setPlayingId]);
 
-  // Reusable vectors for hit-test (avoid per-frame allocations)
-  const normalizedDeviceCoords = useRef(new THREE.Vector3());
-  const worldPosition = useRef(new THREE.Vector3());
-
   useFrame(() => {
     if (!isPointerOverScene.current) {
       setHoveredId(null);
@@ -114,25 +153,15 @@ export function Scene() {
       setPointerPosition(null, null);
       return;
     }
-    if (points.length === 0 || !builtinPointsRef.current) return;
-    const matrixWorld = builtinPointsRef.current.matrixWorld;
-    let bestId: string | null = null;
-    let bestName: string | null = null;
-    let bestDistSq = HOVER_NDC_RADIUS * HOVER_NDC_RADIUS;
-    for (let i = 0; i < points.length; i++) {
-      const point = points[i];
-      const [x, y, z] = getSoundPointPosition3D(point);
-      worldPosition.current.set(x, y, z).applyMatrix4(matrixWorld);
-      normalizedDeviceCoords.current.copy(worldPosition.current).project(camera);
-      const dx = normalizedDeviceCoords.current.x - mouse.current.x;
-      const dy = normalizedDeviceCoords.current.y - mouse.current.y;
-      const distSq = dx * dx + dy * dy;
-      if (distSq < bestDistSq) {
-        bestDistSq = distSq;
-        bestId = String(point.id);
-        bestName = point.name ?? null;
-      }
-    }
+    if (points.length === 0 || !primaryPointsRef.current) return;
+    const { id: bestId, name: bestName } = findClosestSoundPointToCursor(
+      points,
+      mouse.current,
+      camera,
+      primaryPointsRef.current.matrixWorld,
+      worldPosition,
+      normalizedDeviceCoords,
+    );
     setHoveredId(bestId);
     setHoveredName(bestName);
   });
@@ -143,25 +172,153 @@ export function Scene() {
     setPointerPosition(e.nativeEvent.clientX, e.nativeEvent.clientY);
   };
 
-  const soundPointsToPositions = (soundPoints: SoundPoint[]) => {
-    const pos = new Float32Array(soundPoints.length * 3);
-    soundPoints.forEach((point, i) => {
-      const [x, y, z] = getSoundPointPosition3D(point);
-      pos[i * 3] = x;
-      pos[i * 3 + 1] = y;
-      pos[i * 3 + 2] = z;
-    });
-    return pos;
+  const handlePointerEnter = () => {
+    isPointerOverScene.current = true;
+  };
+
+  const handlePointerLeave = () => {
+    isPointerOverScene.current = false;
+    setHoveredId(null);
+    setHoveredName(null);
+    setPointerPosition(null, null);
+  };
+
+  const handlePointerDown = () => {
+    startTone();
+    if (hoveredId != null) setSelectedId(hoveredId);
   };
 
   const builtinPositions = useMemo(() => soundPointsToPositions(builtinPoints), [builtinPoints]);
   const userPositions = useMemo(() => soundPointsToPositions(userPoints), [userPoints]);
 
+  return {
+    points,
+    builtinPoints,
+    userPoints,
+    builtinPositions,
+    userPositions,
+    primaryPointsRef,
+    planeRef,
+    hoveredId,
+    selectedId,
+    highlightedListAudioUrl,
+    handlePointerMove,
+    handlePointerEnter,
+    handlePointerLeave,
+    handlePointerDown,
+  };
+}
+
+// --- UI components ---
+
+function SceneLighting() {
+  return (
+    <>
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[10, 10, 5]} intensity={1} />
+    </>
+  );
+}
+
+interface InvisibleHitPlaneProps {
+  planeRef: React.RefObject<THREE.Mesh | null>;
+  onPointerEnter: () => void;
+  onPointerMove: (e: { pointer: { x: number; y: number }; nativeEvent: { clientX: number; clientY: number } }) => void;
+  onPointerLeave: () => void;
+  onPointerDown: () => void;
+}
+
+function InvisibleHitPlane({ planeRef, onPointerEnter, onPointerMove, onPointerLeave, onPointerDown }: InvisibleHitPlaneProps) {
+  return (
+    <mesh
+      ref={planeRef}
+      position={[0, 0, 0]}
+      onPointerEnter={onPointerEnter}
+      onPointerMove={onPointerMove}
+      onPointerLeave={onPointerLeave}
+      onPointerDown={onPointerDown}
+    >
+      <planeGeometry args={[1e6, 1e6]} />
+      <meshBasicMaterial visible={false} side={THREE.DoubleSide} />
+    </mesh>
+  );
+}
+
+interface PointsCloudProps {
+  positions: Float32Array;
+  color: string;
+  size: number;
+  pointsRef?: React.RefObject<THREE.Points | null>;
+}
+
+function PointsCloud({ positions, color, size, pointsRef }: PointsCloudProps) {
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial size={size} color={color} sizeAttenuation transparent opacity={0.9} />
+    </points>
+  );
+}
+
+interface HoveredPointMarkerProps {
+  points: SoundPoint[];
+  hoveredId: string | null;
+}
+
+function HoveredPointMarker({ points, hoveredId }: HoveredPointMarkerProps) {
+  if (hoveredId == null) return null;
+  const point = points.find((x) => String(x.id) === String(hoveredId));
+  if (!point) return null;
+  const [x, y, z] = getSoundPointPosition3D(point);
+  return (
+    <mesh position={[x, y, z]}>
+      <sphereGeometry args={[0.06, 16, 16]} />
+      <meshBasicMaterial color="#fbbf24" transparent opacity={0.9} />
+    </mesh>
+  );
+}
+
+interface HighlightedListPointMarkerProps {
+  points: SoundPoint[];
+  highlightedListAudioUrl: string | null;
+}
+
+function HighlightedListPointMarker({ points, highlightedListAudioUrl }: HighlightedListPointMarkerProps) {
+  if (highlightedListAudioUrl == null) return null;
+  const point = points.find((x) => x.audioUrl === highlightedListAudioUrl);
+  if (!point) return null;
+  const [x, y, z] = getSoundPointPosition3D(point);
+  return (
+    <mesh position={[x, y, z]}>
+      <sphereGeometry args={[0.15, 10, 10]} />
+      <meshBasicMaterial color="#f97316" transparent opacity={0.25} depthWrite={false} />
+    </mesh>
+  );
+}
+
+export function Scene() {
+  const {
+    points,
+    builtinPoints,
+    userPoints,
+    builtinPositions,
+    userPositions,
+    primaryPointsRef,
+    planeRef,
+    hoveredId,
+    highlightedListAudioUrl,
+    handlePointerMove,
+    handlePointerEnter,
+    handlePointerLeave,
+    handlePointerDown,
+  } = useSceneLogic();
+
   if (points.length === 0) {
     return (
       <>
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[10, 10, 5]} intensity={1} />
+        <SceneLighting />
         <mesh position={[0, 0, 0]}>
           <planeGeometry args={[1000, 1000]} />
           <meshBasicMaterial visible={false} />
@@ -172,78 +329,14 @@ export function Scene() {
 
   return (
     <>
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 5]} intensity={1} />
-      {/* Invisible plane at z=0 for raycast to get cursor (x,y) in galaxy space */}
-      <mesh
-        ref={planeRef}
-        position={[0, 0, 0]}
-        onPointerEnter={() => { isPointerOverScene.current = true; }}
-        onPointerMove={handlePointerMove}
-        onPointerLeave={() => {
-          isPointerOverScene.current = false;
-          setHoveredId(null);
-          setHoveredName(null);
-          setPointerPosition(null, null);
-        }}
-        onPointerDown={() => {
-          startTone();
-          if (hoveredId != null) setSelectedId(hoveredId);
-        }}
-      >
-        <planeGeometry args={[1e6, 1e6]} />
-        <meshBasicMaterial visible={false} side={THREE.DoubleSide} />
-      </mesh>
-      {builtinPoints.length > 0 && (
-        <points ref={builtinPointsRef} key={`builtin-${builtinPoints.length}`}>
-          <bufferGeometry>
-            <bufferAttribute attach="attributes-position" args={[builtinPositions, 3]} />
-          </bufferGeometry>
-          <pointsMaterial
-            size={0.12}
-            color="#3b82f6"
-            sizeAttenuation
-            transparent
-            opacity={0.9}
-          />
-        </points>
-      )}
-      {userPoints.length > 0 && (
-        <points ref={builtinPoints.length === 0 ? builtinPointsRef : undefined} key={`user-${userPoints.length}`}>
-          <bufferGeometry>
-            <bufferAttribute attach="attributes-position" args={[userPositions, 3]} />
-          </bufferGeometry>
-          <pointsMaterial
-            size={0.12}
-            color="#f97316"
-            sizeAttenuation
-            transparent
-            opacity={0.9}
-          />
-        </points>
-      )}
-      {hoveredId != null && (() => {
-        const point = points.find((x) => String(x.id) === String(hoveredId));
-        if (!point) return null;
-        const [x, y, z] = getSoundPointPosition3D(point);
-        return (
-          <mesh position={[x, y, z]}>
-            <sphereGeometry args={[0.06, 16, 16]} />
-            <meshBasicMaterial color="#fbbf24" transparent opacity={0.9} />
-          </mesh>
-        );
-      })()}
-      {highlightedListAudioUrl != null && (() => {
-        const point = points.find((x) => x.audioUrl === highlightedListAudioUrl);
-        if (!point) return null;
-        const [x, y, z] = getSoundPointPosition3D(point);
-        return (
-          <mesh position={[x, y, z]}>
-            <sphereGeometry args={[0.15, 10, 10]} />
-            <meshBasicMaterial color="#f97316" transparent opacity={0.25} depthWrite={false} />
-          </mesh>
-        );
-      })()}
+      <SceneLighting />
+      <InvisibleHitPlane planeRef={planeRef} onPointerEnter={handlePointerEnter} onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave} onPointerDown={handlePointerDown} />
+      {/* Point clouds: builtin (blue), user (orange); primaryPointsRef used for hit-test (builtin or user when only user has points) */}
+      {builtinPoints.length > 0 && <PointsCloud pointsRef={primaryPointsRef} positions={builtinPositions} color="#3b82f6" size={0.12} key={`builtin-${builtinPoints.length}`} />}
+      {userPoints.length > 0 && <PointsCloud pointsRef={builtinPoints.length === 0 ? primaryPointsRef : undefined} positions={userPositions} color="#f97316" size={0.12} key={`user-${userPoints.length}`} />}
+      {/* Hover + list-highlight markers */}
+      <HoveredPointMarker points={points} hoveredId={hoveredId} />
+      <HighlightedListPointMarker points={points} highlightedListAudioUrl={highlightedListAudioUrl} />
     </>
   );
 }
