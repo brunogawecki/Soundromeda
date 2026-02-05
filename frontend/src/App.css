@@ -364,6 +364,23 @@
   gap: 6px;
 }
 
+.settings-delete-buttons-row {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.settings-delete-buttons-row .settings-action-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-delete-buttons-row .settings-action-btn span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .settings-delete-confirm {
   padding: 0.25rem 0;
 }

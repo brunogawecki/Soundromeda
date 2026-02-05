@@ -334,48 +334,6 @@ function UploadDropdown({
               </button>
             </div>
           </div>
-        ) : selectionMode ? (
-          <>
-            <span className="settings-uploaded-list-title">Select sounds to delete</span>
-            {deleteError && <p className="settings-upload-error">{deleteError}</p>}
-            {uploadedFiles.length === 0 ? (
-              <span className="settings-uploaded-list-empty">No uploads yet</span>
-            ) : (
-              <ul className="settings-uploaded-list-names">
-                {uploadedFiles.map((f) => (
-                  <li key={f.id}>
-                    <label className="settings-delete-checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(f.id)}
-                        onChange={() => toggleSelected(f.id)}
-                        aria-label={`Select ${f.name}`}
-                      />
-                      <span className="settings-delete-checkbox-name">{f.name}</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="settings-action-row">
-              <button
-                type="button"
-                className="settings-action-btn settings-action-btn--danger"
-                onClick={deleteSelected}
-                disabled={selectedIds.size === 0}
-              >
-                <Trash2 size={14} />
-                <span>Delete selected ({selectedIds.size})</span>
-              </button>
-              <button
-                type="button"
-                className="settings-action-btn"
-                onClick={() => setSelectionMode(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </>
         ) : (
           <>
             <div className="settings-action-row">
@@ -389,29 +347,44 @@ function UploadDropdown({
               </button>
             </div>
             <span className="settings-uploaded-list-title">Uploaded sounds</span>
+            {deleteError && <p className="settings-upload-error">{deleteError}</p>}
             {uploadedFiles.length === 0 ? (
               <span className="settings-uploaded-list-empty">No uploads yet</span>
             ) : (
               <ul className="settings-uploaded-list-names">
-                {uploadedFiles.map((f) => (
-                  <li key={f.id}>
-                    <button
-                      type="button"
-                      className="settings-uploaded-list-play"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (f.audioUrl) onPlay(f.audioUrl);
-                      }}
-                      onMouseEnter={() => onHighlight(f.audioUrl)}
-                      onMouseLeave={() => onHighlight(null)}
-                      title={`Play ${f.name}`}
-                      aria-label={`Play ${f.name}`}
-                    >
-                      <Play size={14} aria-hidden />
-                      <span>{f.name}</span>
-                    </button>
-                  </li>
-                ))}
+                {uploadedFiles.map((f) =>
+                  selectionMode ? (
+                    <li key={f.id}>
+                      <label className="settings-delete-checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(f.id)}
+                          onChange={() => toggleSelected(f.id)}
+                          aria-label={`Select ${f.name}`}
+                        />
+                        <span className="settings-delete-checkbox-name">{f.name}</span>
+                      </label>
+                    </li>
+                  ) : (
+                    <li key={f.id}>
+                      <button
+                        type="button"
+                        className="settings-uploaded-list-play"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (f.audioUrl) onPlay(f.audioUrl);
+                        }}
+                        onMouseEnter={() => onHighlight(f.audioUrl)}
+                        onMouseLeave={() => onHighlight(null)}
+                        title={`Play ${f.name}`}
+                        aria-label={`Play ${f.name}`}
+                      >
+                        <Play size={14} aria-hidden />
+                        <span>{f.name}</span>
+                      </button>
+                    </li>
+                  )
+                )}
               </ul>
             )}
             <div className="settings-delete-section">
@@ -437,16 +410,37 @@ function UploadDropdown({
                   <Trash2 size={14} />
                   <span>Delete all user</span>
                 </button>
-                <button
-                  type="button"
-                  className="settings-action-btn settings-action-btn--delete"
-                  onClick={enterSelectionMode}
-                  disabled={uploadStatus === 'uploading' || uploadedFiles.length === 0}
-                  title="Select uploaded sounds to delete"
-                >
-                  <ListChecks size={14} />
-                  <span>Select to delete</span>
-                </button>
+                {selectionMode ? (
+                  <div className="settings-delete-buttons-row">
+                    <button
+                      type="button"
+                      className="settings-action-btn settings-action-btn--danger"
+                      onClick={deleteSelected}
+                      disabled={selectedIds.size === 0}
+                    >
+                      <Trash2 size={14} />
+                      <span>Delete ({selectedIds.size})</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-action-btn"
+                      onClick={() => setSelectionMode(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="settings-action-btn settings-action-btn--delete"
+                    onClick={enterSelectionMode}
+                    disabled={uploadStatus === 'uploading' || uploadedFiles.length === 0}
+                    title="Select uploaded sounds to delete"
+                  >
+                    <ListChecks size={14} />
+                    <span>Select to delete</span>
+                  </button>
+                )}
               </div>
               {deleteError && <p className="settings-upload-error">{deleteError}</p>}
             </div>
