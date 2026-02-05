@@ -54,6 +54,40 @@ async function fetchHiddenBuiltinIds(): Promise<string[]> {
 
 export type ConfirmAction = null | 'delete-all-builtin' | 'delete-all-user' | 'delete-selected';
 
+interface DismissibleMessageProps {
+  message: string;
+  onDismiss: () => void;
+  isError?: boolean;
+}
+
+interface ConfirmDeleteDialogProps {
+  confirmAction: ConfirmAction;
+  selectedIds: Set<number>;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+interface UploadButtonsRowProps {
+  onFileClick: () => void;
+  onFolderClick: () => void;
+  disabled: boolean;
+}
+
+interface UploadedSoundsListProps {
+  uploadedFiles: UploadedFile[];
+  selectionMode: boolean;
+  selectedIds: Set<number>;
+  onToggleSelected: (id: number) => void;
+  onPlay: (url: string) => void;
+  onHighlight: (url: string | null) => void;
+}
+
+interface HiddenFileInputsProps {
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  folderInputRef: React.RefObject<HTMLInputElement | null>;
+  onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}
+
 function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -292,15 +326,310 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
 
 // UI components (pure presentational / layout)
 
-function HiddenFileInputs({
-  fileInputRef,
-  folderInputRef,
-  onFileChange,
+function DismissibleMessage({ message, onDismiss, isError = false }: DismissibleMessageProps) {
+  return (
+    <div className="settings-message-row" role="status">
+      <span className={isError ? 'settings-upload-error' : 'settings-upload-panel-message'}>
+        {message}
+      </span>
+      <button
+        type="button"
+        className="settings-message-dismiss"
+        onClick={onDismiss}
+        aria-label="Dismiss message"
+      >
+        <X size={14} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+function ConfirmDeleteDialog({ confirmAction, selectedIds, onConfirm, onCancel }: ConfirmDeleteDialogProps) {
+  const getMessage = () => {
+    if (confirmAction === 'delete-all-builtin')
+      return 'This will hide all built-in sounds. You can restore them later.';
+    if (confirmAction === 'delete-all-user')
+      return 'This will permanently delete all your uploaded sounds. This cannot be undone.';
+    if (confirmAction === 'delete-selected')
+      return `Delete ${selectedIds.size} sound(s)? User sounds will be permanently deleted.`;
+    return '';
+  };
+
+  return (
+    <div className="settings-delete-confirm">
+      <p className="settings-delete-confirm-text">{getMessage()}</p>
+      <div className="settings-action-row">
+        <button
+          type="button"
+          className="settings-action-btn settings-action-btn--danger"
+          onClick={onConfirm}
+        >
+          Yes
+        </button>
+        <button type="button" className="settings-action-btn" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UploadButtonsRow({ onFileClick, onFolderClick, disabled }: UploadButtonsRowProps) {
+  return (
+    <div className="settings-action-row">
+      <button
+        type="button"
+        className="settings-action-btn"
+        onClick={onFileClick}
+        disabled={disabled}
+      >
+        <FileUp />
+        <span>Upload files</span>
+      </button>
+      <button
+        type="button"
+        className="settings-action-btn"
+        onClick={onFolderClick}
+        disabled={disabled}
+      >
+        <FolderUp />
+        <span>Upload folder</span>
+      </button>
+    </div>
+  );
+}
+
+function UploadedSoundsList({ uploadedFiles, selectionMode, selectedIds, onToggleSelected, onPlay, onHighlight }: UploadedSoundsListProps) {
+  if (uploadedFiles.length === 0) {
+    return <span className="settings-uploaded-list-empty">No uploads yet</span>;
+  }
+
+  return (
+    <ul className="settings-uploaded-list-names">
+      {uploadedFiles.map((uploadedFile) =>
+        selectionMode ? (
+          <li key={uploadedFile.id}>
+            <label className="settings-delete-checkbox-row">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(uploadedFile.id)}
+                onChange={() => onToggleSelected(uploadedFile.id)}
+                aria-label={`Select ${displayOnlySoundFileName(uploadedFile.name)}`}
+              />
+              <span className="settings-delete-checkbox-name">
+                {displayOnlySoundFileName(uploadedFile.name)}
+              </span>
+            </label>
+          </li>
+        ) : (
+          <li key={uploadedFile.id}>
+            <button
+              type="button"
+              className="settings-uploaded-list-play"
+              onClick={(event) => {
+                event.preventDefault();
+                if (uploadedFile.audioUrl) onPlay(uploadedFile.audioUrl);
+              }}
+              onMouseEnter={() => onHighlight(uploadedFile.audioUrl)}
+              onMouseLeave={() => onHighlight(null)}
+              title={`Play ${displayOnlySoundFileName(uploadedFile.name)}`}
+              aria-label={`Play ${displayOnlySoundFileName(uploadedFile.name)}`}
+            >
+              <Play size={14} aria-hidden />
+              <span>{displayOnlySoundFileName(uploadedFile.name)}</span>
+            </button>
+          </li>
+        )
+      )}
+    </ul>
+  );
+}
+
+function RestoreSection({
+  restoreMessage,
+  setRestoreMessage,
+  confirmRestore,
+  setConfirmRestore,
+  setDeleteError,
+  restoreConfirmRef,
+  restoreAllBuiltin,
+  uploadStatus,
 }: {
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
-  folderInputRef: React.RefObject<HTMLInputElement | null>;
-  onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  restoreMessage: string | null;
+  setRestoreMessage: (message: string | null) => void;
+  confirmRestore: boolean;
+  setConfirmRestore: (value: boolean) => void;
+  setDeleteError: (error: string | null) => void;
+  restoreConfirmRef: React.RefObject<HTMLDivElement | null>;
+  restoreAllBuiltin: () => Promise<void>;
+  uploadStatus: UploadStatus;
 }) {
+  return (
+    <div className="settings-restore-section">
+      <span className="settings-uploaded-list-title">Restore</span>
+      {restoreMessage && (
+        <DismissibleMessage
+          message={restoreMessage}
+          onDismiss={() => setRestoreMessage(null)}
+        />
+      )}
+      {confirmRestore ? (
+        <div ref={restoreConfirmRef} className="settings-delete-confirm">
+          <p className="settings-delete-confirm-text">
+            Restore all hidden built-in sounds?
+          </p>
+          <div className="settings-action-row">
+            <button
+              type="button"
+              className="settings-action-btn settings-action-btn--restore"
+              onClick={restoreAllBuiltin}
+            >
+              Yes
+            </button>
+            <button
+              type="button"
+              className="settings-action-btn"
+              onClick={() => {
+                setConfirmRestore(false);
+                setDeleteError(null);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="settings-delete-buttons">
+          <button
+            type="button"
+            className="settings-action-btn settings-action-btn--restore"
+            onClick={() => setConfirmRestore(true)}
+            disabled={uploadStatus === 'uploading'}
+            title="Restore all deleted built-in sounds"
+          >
+            <RotateCcw size={14} />
+            <span>Restore all deleted built-in</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeleteSection({
+  panelMessage,
+  setPanelMessage,
+  uploadStatus,
+  uploadedFiles,
+  selectionMode,
+  setSelectionMode,
+  selectedIds,
+  setConfirmAction,
+  enterSelectionMode,
+  deleteError,
+  restoreMessage,
+  setRestoreMessage,
+  confirmRestore,
+  setConfirmRestore,
+  setDeleteError,
+  restoreConfirmRef,
+  restoreAllBuiltin,
+}: {
+  panelMessage: string | null;
+  setPanelMessage: (message: string | null) => void;
+  uploadStatus: UploadStatus;
+  uploadedFiles: UploadedFile[];
+  selectionMode: boolean;
+  setSelectionMode: (value: boolean) => void;
+  selectedIds: Set<number>;
+  setConfirmAction: (action: ConfirmAction) => void;
+  enterSelectionMode: () => void;
+  deleteError: string | null;
+  restoreMessage: string | null;
+  setRestoreMessage: (message: string | null) => void;
+  confirmRestore: boolean;
+  setConfirmRestore: (value: boolean) => void;
+  setDeleteError: (error: string | null) => void;
+  restoreConfirmRef: React.RefObject<HTMLDivElement | null>;
+  restoreAllBuiltin: () => Promise<void>;
+}) {
+  const isUploading = uploadStatus === 'uploading';
+
+  return (
+    <div className="settings-delete-section">
+      <span className="settings-uploaded-list-title">Delete</span>
+      {panelMessage && (
+        <DismissibleMessage message={panelMessage} onDismiss={() => setPanelMessage(null)} />
+      )}
+      <div className="settings-delete-buttons">
+        <button
+          type="button"
+          className="settings-action-btn settings-action-btn--delete"
+          onClick={() => setConfirmAction('delete-all-builtin')}
+          disabled={isUploading}
+          title="Hide all built-in sounds (reversible)"
+        >
+          <Trash2 size={14} />
+          <span>Delete all built-in</span>
+        </button>
+        <button
+          type="button"
+          className="settings-action-btn settings-action-btn--delete"
+          onClick={() => setConfirmAction('delete-all-user')}
+          disabled={isUploading}
+          title="Permanently delete all uploaded sounds"
+        >
+          <Trash2 size={14} />
+          <span>Delete all user</span>
+        </button>
+        {selectionMode ? (
+          <div className="settings-delete-buttons-row">
+            <button
+              type="button"
+              className="settings-action-btn settings-action-btn--danger"
+              onClick={() => setConfirmAction('delete-selected')}
+              disabled={selectedIds.size === 0}
+            >
+              <Trash2 size={14} />
+              <span>Delete ({selectedIds.size})</span>
+            </button>
+            <button
+              type="button"
+              className="settings-action-btn"
+              onClick={() => setSelectionMode(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="settings-action-btn settings-action-btn--delete"
+            onClick={enterSelectionMode}
+            disabled={isUploading || uploadedFiles.length === 0}
+            title="Select uploaded sounds to delete"
+          >
+            <ListChecks size={14} />
+            <span>Select to delete</span>
+          </button>
+        )}
+      </div>
+      <RestoreSection
+        restoreMessage={restoreMessage}
+        setRestoreMessage={setRestoreMessage}
+        confirmRestore={confirmRestore}
+        setConfirmRestore={setConfirmRestore}
+        setDeleteError={setDeleteError}
+        restoreConfirmRef={restoreConfirmRef}
+        restoreAllBuiltin={restoreAllBuiltin}
+        uploadStatus={uploadStatus}
+      />
+      {deleteError && <p className="settings-upload-error">{deleteError}</p>}
+    </div>
+  );
+}
+
+function HiddenFileInputs({ fileInputRef, folderInputRef, onFileChange }: HiddenFileInputsProps) {
   return (
     <>
       <input
@@ -383,232 +712,68 @@ function UploadDropdown({
   setConfirmRestore: (value: boolean) => void;
   restoreConfirmRef: React.RefObject<HTMLDivElement | null>;
 }) {
+  const handleConfirmDelete = () => {
+    if (confirmAction === 'delete-all-builtin') deleteAllBuiltin();
+    else if (confirmAction === 'delete-all-user') deleteAllUser();
+    else if (confirmAction === 'delete-selected') deleteSelected();
+  };
+
   return (
     <div className="settings-upload-dropdown-wrapper">
       <div className="settings-uploaded-list-bridge" aria-hidden />
       <div className="settings-uploaded-list settings-uploaded-list--with-delete" role="tooltip">
         {confirmAction !== null ? (
-          <div className="settings-delete-confirm">
-            <p className="settings-delete-confirm-text">
-              {confirmAction === 'delete-all-builtin' &&
-                'This will hide all built-in sounds. You can restore them later.'}
-              {confirmAction === 'delete-all-user' &&
-                'This will permanently delete all your uploaded sounds. This cannot be undone.'}
-              {confirmAction === 'delete-selected' &&
-                `Delete ${selectedIds.size} sound(s)? User sounds will be permanently deleted.`}
-            </p>
-            <div className="settings-action-row">
-              <button
-                type="button"
-                className="settings-action-btn settings-action-btn--danger"
-                onClick={() => {
-                  if (confirmAction === 'delete-all-builtin') deleteAllBuiltin();
-                  else if (confirmAction === 'delete-all-user') deleteAllUser();
-                  else if (confirmAction === 'delete-selected') deleteSelected();
-                }}
-              >
-                Yes
-              </button>
-              <button
-                type="button"
-                className="settings-action-btn"
-                onClick={() => { setConfirmAction(null); setDeleteError(null); }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+          <ConfirmDeleteDialog
+            confirmAction={confirmAction}
+            selectedIds={selectedIds}
+            onConfirm={handleConfirmDelete}
+            onCancel={() => {
+              setConfirmAction(null);
+              setDeleteError(null);
+            }}
+          />
         ) : (
           <>
-            <div className="settings-action-row">
-              <button className="settings-action-btn" onClick={onFileClick} disabled={uploadStatus === 'uploading'}>
-                <FileUp />
-                <span>Upload files</span>
-              </button>
-              <button className="settings-action-btn" onClick={onFolderClick} disabled={uploadStatus === 'uploading'}>
-                <FolderUp />
-                <span>Upload folder</span>
-              </button>
-            </div>
+            <UploadButtonsRow
+              onFileClick={onFileClick}
+              onFolderClick={onFolderClick}
+              disabled={uploadStatus === 'uploading'}
+            />
             <span className="settings-uploaded-list-title">Uploaded sounds</span>
             {uploadPanelMessage && (
-              <div className="settings-message-row" role="status">
-                <span
-                  className={uploadPanelMessageType === 'error' ? 'settings-upload-error' : 'settings-upload-panel-message'}
-                >
-                  {uploadPanelMessage}
-                </span>
-                <button
-                  type="button"
-                  className="settings-message-dismiss"
-                  onClick={() => setUploadPanelMessage(null)}
-                  aria-label="Dismiss message"
-                >
-                  <X size={14} aria-hidden />
-                </button>
-              </div>
+              <DismissibleMessage
+                message={uploadPanelMessage}
+                onDismiss={() => setUploadPanelMessage(null)}
+                isError={uploadPanelMessageType === 'error'}
+              />
             )}
-            {uploadedFiles.length === 0 ? (
-              <span className="settings-uploaded-list-empty">No uploads yet</span>
-            ) : (
-              <ul className="settings-uploaded-list-names">
-                {uploadedFiles.map((uploadedFile) =>
-                  selectionMode ? (
-                    <li key={uploadedFile.id}>
-                      <label className="settings-delete-checkbox-row">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(uploadedFile.id)}
-                          onChange={() => toggleSelected(uploadedFile.id)}
-                          aria-label={`Select ${displayOnlySoundFileName(uploadedFile.name)}`}
-                        />
-                        <span className="settings-delete-checkbox-name">{displayOnlySoundFileName(uploadedFile.name)}</span>
-                      </label>
-                    </li>
-                  ) : (
-                    <li key={uploadedFile.id}>
-                      <button
-                        type="button"
-                        className="settings-uploaded-list-play"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          if (uploadedFile.audioUrl) onPlay(uploadedFile.audioUrl);
-                        }}
-                        onMouseEnter={() => onHighlight(uploadedFile.audioUrl)}
-                        onMouseLeave={() => onHighlight(null)}
-                        title={`Play ${displayOnlySoundFileName(uploadedFile.name)}`}
-                        aria-label={`Play ${displayOnlySoundFileName(uploadedFile.name)}`}
-                      >
-                        <Play size={14} aria-hidden />
-                        <span>{displayOnlySoundFileName(uploadedFile.name)}</span>
-                      </button>
-                    </li>
-                  )
-                )}
-              </ul>
-            )}
-            <div className="settings-delete-section">
-              <span className="settings-uploaded-list-title">Delete</span>
-              {panelMessage && (
-                <div className="settings-message-row" role="status">
-                  <span className="settings-upload-panel-message">{panelMessage}</span>
-                  <button
-                    type="button"
-                    className="settings-message-dismiss"
-                    onClick={() => setPanelMessage(null)}
-                    aria-label="Dismiss message"
-                  >
-                    <X size={14} aria-hidden />
-                  </button>
-                </div>
-              )}
-              <div className="settings-delete-buttons">
-                <button
-                  type="button"
-                  className="settings-action-btn settings-action-btn--delete"
-                  onClick={() => setConfirmAction('delete-all-builtin')}
-                  disabled={uploadStatus === 'uploading'}
-                  title="Hide all built-in sounds (reversible)"
-                >
-                  <Trash2 size={14} />
-                  <span>Delete all built-in</span>
-                </button>
-                <button
-                  type="button"
-                  className="settings-action-btn settings-action-btn--delete"
-                  onClick={() => setConfirmAction('delete-all-user')}
-                  disabled={uploadStatus === 'uploading'}
-                  title="Permanently delete all uploaded sounds"
-                >
-                  <Trash2 size={14} />
-                  <span>Delete all user</span>
-                </button>
-                {selectionMode ? (
-                  <div className="settings-delete-buttons-row">
-                    <button
-                      type="button"
-                      className="settings-action-btn settings-action-btn--danger"
-                      onClick={() => setConfirmAction('delete-selected')}
-                      disabled={selectedIds.size === 0}
-                    >
-                      <Trash2 size={14} />
-                      <span>Delete ({selectedIds.size})</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-action-btn"
-                      onClick={() => setSelectionMode(false)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="settings-action-btn settings-action-btn--delete"
-                    onClick={enterSelectionMode}
-                    disabled={uploadStatus === 'uploading' || uploadedFiles.length === 0}
-                    title="Select uploaded sounds to delete"
-                  >
-                    <ListChecks size={14} />
-                    <span>Select to delete</span>
-                  </button>
-                )}
-              </div>
-              <div className="settings-restore-section">
-                <span className="settings-uploaded-list-title">Restore</span>
-                {restoreMessage && (
-                  <div className="settings-message-row" role="status">
-                    <span className="settings-upload-panel-message">{restoreMessage}</span>
-                    <button
-                      type="button"
-                      className="settings-message-dismiss"
-                      onClick={() => setRestoreMessage(null)}
-                      aria-label="Dismiss message"
-                    >
-                      <X size={14} aria-hidden />
-                    </button>
-                  </div>
-                )}
-                {confirmRestore ? (
-                  <div ref={restoreConfirmRef} className="settings-delete-confirm">
-                    <p className="settings-delete-confirm-text">
-                      Restore all hidden built-in sounds?
-                    </p>
-                    <div className="settings-action-row">
-                      <button
-                        type="button"
-                        className="settings-action-btn settings-action-btn--restore"
-                        onClick={restoreAllBuiltin}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        className="settings-action-btn"
-                        onClick={() => { setConfirmRestore(false); setDeleteError(null); }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="settings-delete-buttons">
-                    <button
-                      type="button"
-                      className="settings-action-btn settings-action-btn--restore"
-                      onClick={() => setConfirmRestore(true)}
-                      disabled={uploadStatus === 'uploading'}
-                      title="Restore all deleted built-in sounds"
-                    >
-                      <RotateCcw size={14} />
-                      <span>Restore all deleted built-in</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-              {deleteError && <p className="settings-upload-error">{deleteError}</p>}
-            </div>
+            <UploadedSoundsList
+              uploadedFiles={uploadedFiles}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelected={toggleSelected}
+              onPlay={onPlay}
+              onHighlight={onHighlight}
+            />
+            <DeleteSection
+              panelMessage={panelMessage}
+              setPanelMessage={setPanelMessage}
+              uploadStatus={uploadStatus}
+              uploadedFiles={uploadedFiles}
+              selectionMode={selectionMode}
+              setSelectionMode={setSelectionMode}
+              selectedIds={selectedIds}
+              setConfirmAction={setConfirmAction}
+              enterSelectionMode={enterSelectionMode}
+              deleteError={deleteError}
+              restoreMessage={restoreMessage}
+              setRestoreMessage={setRestoreMessage}
+              confirmRestore={confirmRestore}
+              setConfirmRestore={setConfirmRestore}
+              setDeleteError={setDeleteError}
+              restoreConfirmRef={restoreConfirmRef}
+              restoreAllBuiltin={restoreAllBuiltin}
+            />
           </>
         )}
       </div>
