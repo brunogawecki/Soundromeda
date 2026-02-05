@@ -49,8 +49,8 @@ export type ConfirmAction = null | 'delete-all-builtin' | 'delete-all-user';
 function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const [uploadListHovered, setUploadListHovered] = useState(false);
+  const uploadWrapRef = useRef<HTMLDivElement>(null);
+  const [isUploadDropdownOpen, setIsUploadDropdownOpen] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -61,26 +61,25 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
   const setHighlightedListAudioUrl = useAppStore((s) => s.setHighlightedListAudioUrl);
 
   useEffect(() => {
-    if (!uploadListHovered) return;
+    if (!isUploadDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (uploadWrapRef.current && !uploadWrapRef.current.contains(e.target as Node)) {
+        setIsUploadDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isUploadDropdownOpen]);
+
+  useEffect(() => {
+    if (!isUploadDropdownOpen) return;
     let cancelled = false;
     setPanelMessage(null);
     fetchUserUploadedSounds()
       .then((files) => { if (!cancelled) setUploadedFiles(files); })
       .catch(() => { if (!cancelled) setUploadedFiles([]); });
     return () => { cancelled = true; };
-  }, [uploadListHovered]);
-
-  const handleWrapMouseLeave = (e: React.MouseEvent) => {
-    if (confirmAction !== null || selectionMode) return;
-    const related = e.relatedTarget as Node | null;
-    if (related && dropdownRef.current?.contains(related)) return;
-    setUploadListHovered(false);
-  };
-
-  const handleDropdownMouseLeave = () => {
-    if (confirmAction !== null || selectionMode) return;
-    setUploadListHovered(false);
-  };
+  }, [isUploadDropdownOpen]);
 
   const handleFileClick = () => {
     setUploadStatus('idle');
@@ -121,6 +120,7 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
       setUploadStatus('ok');
       setUploadMessage(`Added ${successCount} sound${successCount !== 1 ? 's' : ''}`);
       refreshGalaxy();
+      fetchUserUploadedSounds().then(setUploadedFiles).catch(() => {});
     } else {
       setUploadStatus('error');
       setUploadMessage(failCount > 0 ? 'Upload failed' : 'No audio files found');
@@ -202,11 +202,9 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
   return {
     fileInputRef,
     folderInputRef,
-    dropdownRef,
-    uploadListHovered,
-    setUploadListHovered,
-    handleWrapMouseLeave,
-    handleDropdownMouseLeave,
+    uploadWrapRef,
+    isUploadDropdownOpen,
+    setIsUploadDropdownOpen,
     uploadedFiles,
     handleFileClick,
     handleFolderClick,
@@ -280,8 +278,6 @@ function UploadDropdown({
   deleteAllBuiltin,
   deleteAllUser,
   deleteSelected,
-  dropdownRef,
-  onDropdownMouseLeave,
 }: {
   uploadStatus: UploadStatus;
   uploadedFiles: UploadedFile[];
@@ -302,15 +298,9 @@ function UploadDropdown({
   deleteAllBuiltin: () => Promise<void>;
   deleteAllUser: () => Promise<void>;
   deleteSelected: () => Promise<void>;
-  dropdownRef: React.RefObject<HTMLDivElement | null>;
-  onDropdownMouseLeave: () => void;
 }) {
   return (
-    <div
-      ref={dropdownRef}
-      className="settings-upload-dropdown-wrapper"
-      onMouseLeave={onDropdownMouseLeave}
-    >
+    <div className="settings-upload-dropdown-wrapper">
       <div className="settings-uploaded-list-bridge" aria-hidden />
       <div className="settings-uploaded-list settings-uploaded-list--with-delete" role="tooltip">
         {panelMessage && (
@@ -468,20 +458,19 @@ export function UploadPanel(props: UploadPanelProps) {
         folderInputRef={logic.folderInputRef}
         onFileChange={logic.handleFileChange}
       />
-      <div
-        className="settings-upload-wrap"
-        onMouseEnter={() => logic.setUploadListHovered(true)}
-        onMouseLeave={logic.handleWrapMouseLeave}
-      >
+      <div className="settings-upload-wrap" ref={logic.uploadWrapRef}>
         <button
           type="button"
           className="settings-trigger"
           disabled={props.uploadStatus === 'uploading'}
           aria-label="Upload options"
+          aria-expanded={logic.isUploadDropdownOpen}
+          aria-haspopup="true"
+          onClick={() => logic.setIsUploadDropdownOpen((open) => !open)}
         >
           <Upload size={22} aria-hidden />
         </button>
-        {logic.uploadListHovered && (
+        {logic.isUploadDropdownOpen && (
           <UploadDropdown
             uploadStatus={props.uploadStatus}
             uploadedFiles={logic.uploadedFiles}
@@ -502,8 +491,6 @@ export function UploadPanel(props: UploadPanelProps) {
             deleteAllBuiltin={logic.deleteAllBuiltin}
             deleteAllUser={logic.deleteAllUser}
             deleteSelected={logic.deleteSelected}
-            dropdownRef={logic.dropdownRef}
-            onDropdownMouseLeave={logic.handleDropdownMouseLeave}
           />
         )}
       </div>
