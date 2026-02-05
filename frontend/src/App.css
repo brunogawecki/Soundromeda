@@ -222,7 +222,7 @@
 }
 
 .settings-option input {
-  accent-color: #a78bfa;
+  accent-color: #3b82f6;
 }
 
 .settings-file-input {
@@ -306,25 +306,25 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #a78bfa;
+  background: #3b82f6;
   cursor: pointer;
   transition: background 0.2s ease;
 }
 
 .settings-volume-slider::-webkit-slider-thumb:hover {
-  background: #8b5cf6;
+  background: #2563eb;
 }
 
 .settings-volume-slider::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #a78bfa;
+  background: #3b82f6;
   cursor: pointer;
   border: none;
   transition: background 0.2s ease;
 }
 
 .settings-volume-slider::-moz-range-thumb:hover {
-  background: #8b5cf6;
+  background: #2563eb;
 }
