@@ -57,6 +57,8 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [panelMessage, setPanelMessage] = useState<string | null>(null);
+  const [uploadPanelMessage, setUploadPanelMessage] = useState<string | null>(null);
+  const [uploadPanelMessageType, setUploadPanelMessageType] = useState<'success' | 'error'>('success');
   const refreshGalaxy = useAppStore((s) => s.refreshGalaxy);
   const setHighlightedListAudioUrl = useAppStore((s) => s.setHighlightedListAudioUrl);
 
@@ -75,6 +77,7 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     if (!isUploadDropdownOpen) return;
     let cancelled = false;
     setPanelMessage(null);
+    setUploadPanelMessage(null);
     fetchUserUploadedSounds()
       .then((files) => { if (!cancelled) setUploadedFiles(files); })
       .catch(() => { if (!cancelled) setUploadedFiles([]); });
@@ -119,11 +122,18 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     if (successCount > 0) {
       setUploadStatus('idle');
       setUploadMessage('');
+      const msg = failCount > 0
+        ? `${successCount} file(s) uploaded, ${failCount} failed`
+        : `${successCount} file(s) uploaded successfully`;
+      setUploadPanelMessage(msg);
+      setUploadPanelMessageType(failCount > 0 ? 'error' : 'success');
       refreshGalaxy();
       fetchUserUploadedSounds().then(setUploadedFiles).catch(() => {});
     } else {
       setUploadStatus('error');
-      setUploadMessage(failCount > 0 ? 'Upload failed' : 'No audio files found');
+      setUploadMessage('');
+      setUploadPanelMessage(failCount > 0 ? 'Upload failed' : 'No audio files found');
+      setUploadPanelMessageType('error');
     }
   };
 
@@ -221,6 +231,8 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     deleteError,
     setDeleteError,
     panelMessage,
+    uploadPanelMessage,
+    uploadPanelMessageType,
     deleteAllBuiltin,
     deleteAllUser,
     deleteSelected,
@@ -276,6 +288,8 @@ function UploadDropdown({
   deleteError,
   setDeleteError,
   panelMessage,
+  uploadPanelMessage,
+  uploadPanelMessageType,
   deleteAllBuiltin,
   deleteAllUser,
   deleteSelected,
@@ -296,6 +310,8 @@ function UploadDropdown({
   deleteError: string | null;
   setDeleteError: (err: string | null) => void;
   panelMessage: string | null;
+  uploadPanelMessage: string | null;
+  uploadPanelMessageType: 'success' | 'error';
   deleteAllBuiltin: () => Promise<void>;
   deleteAllUser: () => Promise<void>;
   deleteSelected: () => Promise<void>;
@@ -348,6 +364,14 @@ function UploadDropdown({
               </button>
             </div>
             <span className="settings-uploaded-list-title">Uploaded sounds</span>
+            {uploadPanelMessage && (
+              <p
+                className={uploadPanelMessageType === 'error' ? 'settings-upload-error' : 'settings-upload-panel-message'}
+                role="status"
+              >
+                {uploadPanelMessage}
+              </p>
+            )}
             {deleteError && <p className="settings-upload-error">{deleteError}</p>}
             {uploadedFiles.length === 0 ? (
               <span className="settings-uploaded-list-empty">No uploads yet</span>
@@ -495,6 +519,8 @@ export function UploadPanel(props: UploadPanelProps) {
             deleteError={logic.deleteError}
             setDeleteError={logic.setDeleteError}
             panelMessage={logic.panelMessage}
+            uploadPanelMessage={logic.uploadPanelMessage}
+            uploadPanelMessageType={logic.uploadPanelMessageType}
             deleteAllBuiltin={logic.deleteAllBuiltin}
             deleteAllUser={logic.deleteAllUser}
             deleteSelected={logic.deleteSelected}
