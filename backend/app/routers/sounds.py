@@ -114,6 +114,18 @@ def _normalize_audio_url(item: dict, base: str) -> str:
     return f"{base}/{url.lstrip('/')}"
 
 
+@router.get("/sounds/builtin-ids")
+async def get_all_builtin_ids() -> dict:
+    """GET /api/sounds/builtin-ids — returns all built-in sound IDs from builtin.json (including hidden)."""
+    if not _STATIC_META_PATH.exists():
+        return {"ids": []}
+    raw = _STATIC_META_PATH.read_text(encoding="utf-8")
+    data = json.loads(raw)
+    items = data.get("points", data) if isinstance(data, dict) else data
+    ids = [str(item.get("id", "")) for item in items if item.get("id") is not None]
+    return {"ids": ids}
+
+
 @router.get("/sounds", response_model=PointsResponse)
 async def get_sounds(source: Literal["builtin", "user"], request: Request, db: AsyncSession = Depends(get_db)) -> PointsResponse:
     """GET /api/sounds?source=builtin|user — returns { points: [...] }."""
