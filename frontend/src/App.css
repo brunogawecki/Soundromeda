@@ -99,6 +99,39 @@
   min-height: 0;
 }
 
+.settings-message-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.settings-message-row .settings-upload-panel-message,
+.settings-message-row .settings-upload-error {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-message-dismiss {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.settings-message-dismiss:hover {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .settings-upload-panel-message {
   font-size: 0.75rem;
   color: #86efac;

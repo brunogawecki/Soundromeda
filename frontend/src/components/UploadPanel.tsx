@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Play, FileUp, FolderUp, Trash2, ListChecks } from 'lucide-react';
+import { Upload, Play, FileUp, FolderUp, Trash2, ListChecks, X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { playAudioUrl } from '../useTone';
 const API_BASE = '';
@@ -231,7 +231,9 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     deleteError,
     setDeleteError,
     panelMessage,
+    setPanelMessage,
     uploadPanelMessage,
+    setUploadPanelMessage,
     uploadPanelMessageType,
     deleteAllBuiltin,
     deleteAllUser,
@@ -288,7 +290,9 @@ function UploadDropdown({
   deleteError,
   setDeleteError,
   panelMessage,
+  setPanelMessage,
   uploadPanelMessage,
+  setUploadPanelMessage,
   uploadPanelMessageType,
   deleteAllBuiltin,
   deleteAllUser,
@@ -310,7 +314,9 @@ function UploadDropdown({
   deleteError: string | null;
   setDeleteError: (err: string | null) => void;
   panelMessage: string | null;
+  setPanelMessage: (m: string | null) => void;
   uploadPanelMessage: string | null;
+  setUploadPanelMessage: (m: string | null) => void;
   uploadPanelMessageType: 'success' | 'error';
   deleteAllBuiltin: () => Promise<void>;
   deleteAllUser: () => Promise<void>;
@@ -365,12 +371,21 @@ function UploadDropdown({
             </div>
             <span className="settings-uploaded-list-title">Uploaded sounds</span>
             {uploadPanelMessage && (
-              <p
-                className={uploadPanelMessageType === 'error' ? 'settings-upload-error' : 'settings-upload-panel-message'}
-                role="status"
-              >
-                {uploadPanelMessage}
-              </p>
+              <div className="settings-message-row" role="status">
+                <span
+                  className={uploadPanelMessageType === 'error' ? 'settings-upload-error' : 'settings-upload-panel-message'}
+                >
+                  {uploadPanelMessage}
+                </span>
+                <button
+                  type="button"
+                  className="settings-message-dismiss"
+                  onClick={() => setUploadPanelMessage(null)}
+                  aria-label="Dismiss message"
+                >
+                  <X size={14} aria-hidden />
+                </button>
+              </div>
             )}
             {deleteError && <p className="settings-upload-error">{deleteError}</p>}
             {uploadedFiles.length === 0 ? (
@@ -415,7 +430,17 @@ function UploadDropdown({
             <div className="settings-delete-section">
               <span className="settings-uploaded-list-title">Delete</span>
               {panelMessage && (
-                <p className="settings-upload-panel-message" role="status">{panelMessage}</p>
+                <div className="settings-message-row" role="status">
+                  <span className="settings-upload-panel-message">{panelMessage}</span>
+                  <button
+                    type="button"
+                    className="settings-message-dismiss"
+                    onClick={() => setPanelMessage(null)}
+                    aria-label="Dismiss message"
+                  >
+                    <X size={14} aria-hidden />
+                  </button>
+                </div>
               )}
               <div className="settings-delete-buttons">
                 <button
@@ -519,7 +544,9 @@ export function UploadPanel(props: UploadPanelProps) {
             deleteError={logic.deleteError}
             setDeleteError={logic.setDeleteError}
             panelMessage={logic.panelMessage}
+            setPanelMessage={logic.setPanelMessage}
             uploadPanelMessage={logic.uploadPanelMessage}
+            setUploadPanelMessage={logic.setUploadPanelMessage}
             uploadPanelMessageType={logic.uploadPanelMessageType}
             deleteAllBuiltin={logic.deleteAllBuiltin}
             deleteAllUser={logic.deleteAllUser}
