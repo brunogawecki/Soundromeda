@@ -79,7 +79,7 @@
   width: 300px;
   min-width: 300px;
   max-width: 300px;
-  max-height: 320px;
+  max-height: 420px;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0.5rem 0.75rem;
@@ -401,7 +401,7 @@
 }
 
 .settings-uploaded-list--with-delete {
-  max-height: 320px;
+  max-height: 420px;
 }
 
 .settings-delete-section {
