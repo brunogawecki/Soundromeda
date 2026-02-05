@@ -23,6 +23,8 @@ interface UploadPanelProps {
   uploadStatus: UploadStatus;
   setUploadStatus: (s: UploadStatus) => void;
   setUploadMessage: (m: string) => void;
+  /** Called when the upload dropdown is opened (e.g. so parent can close other panels). */
+  onUploadPanelOpen?: () => void;
 }
 
 // Logic (data fetching, state, event handlers)
@@ -633,7 +635,12 @@ export function UploadPanel(props: UploadPanelProps) {
           aria-label="Upload options"
           aria-expanded={logic.isUploadDropdownOpen}
           aria-haspopup="true"
-          onClick={() => logic.setIsUploadDropdownOpen((open) => !open)}
+          onClick={() => {
+            logic.setIsUploadDropdownOpen((open) => {
+              if (!open) props.onUploadPanelOpen?.();
+              return !open;
+            });
+          }}
         >
           <Upload size={22} aria-hidden />
         </button>
