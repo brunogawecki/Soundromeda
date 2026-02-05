@@ -21,8 +21,8 @@ export type UploadStatus = 'idle' | 'uploading' | 'ok' | 'error';
 
 interface UploadPanelProps {
   uploadStatus: UploadStatus;
-  setUploadStatus: (s: UploadStatus) => void;
-  setUploadMessage: (m: string) => void;
+  setUploadStatus: (status: UploadStatus) => void;
+  setUploadMessage: (message: string) => void;
   /** Called when the upload dropdown is opened (e.g. so parent can close other panels). */
   onUploadPanelOpen?: () => void;
 }
@@ -41,14 +41,14 @@ async function fetchUserUploadedSounds(): Promise<UploadedFile[]> {
 }
 
 async function fetchAllBuiltinIds(): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/api/sounds/builtin-ids`);
-  const data = res.ok ? await res.json() : { ids: [] };
+  const response = await fetch(`${API_BASE}/api/sounds/builtin-ids`);
+  const data = response.ok ? await response.json() : { ids: [] };
   return Array.isArray(data?.ids) ? data.ids : [];
 }
 
 async function fetchHiddenBuiltinIds(): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/api/sounds/hidden-builtin`);
-  const data = res.ok ? await res.json() : { hidden_ids: [] };
+  const response = await fetch(`${API_BASE}/api/sounds/hidden-builtin`);
+  const data = response.ok ? await response.json() : { hidden_ids: [] };
   return Array.isArray(data?.hidden_ids) ? data.hidden_ids : [];
 }
 
@@ -70,13 +70,13 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   const [uploadPanelMessage, setUploadPanelMessage] = useState<string | null>(null);
   const [uploadPanelMessageType, setUploadPanelMessageType] = useState<'success' | 'error'>('success');
-  const refreshGalaxy = useAppStore((s) => s.refreshGalaxy);
-  const setHighlightedListAudioUrl = useAppStore((s) => s.setHighlightedListAudioUrl);
+  const refreshGalaxy = useAppStore((state) => state.refreshGalaxy);
+  const setHighlightedListAudioUrl = useAppStore((state) => state.setHighlightedListAudioUrl);
 
   useEffect(() => {
     if (!isUploadDropdownOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (uploadWrapRef.current && !uploadWrapRef.current.contains(e.target as Node)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (uploadWrapRef.current && !uploadWrapRef.current.contains(event.target as Node)) {
         setIsUploadDropdownOpen(false);
       }
     };
@@ -98,10 +98,10 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
 
   useEffect(() => {
     if (!confirmRestore) return;
-    const el = restoreConfirmRef.current;
-    if (!el) return;
+    const restoreConfirmElement = restoreConfirmRef.current;
+    if (!restoreConfirmElement) return;
     requestAnimationFrame(() => {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      restoreConfirmElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
   }, [confirmRestore]);
 
@@ -117,14 +117,14 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     folderInputRef.current?.click();
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files ? Array.from(e.target.files) : [];
-    e.target.value = '';
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    event.target.value = '';
 
     if (files.length === 0) return;
 
     const allowedFileTypes = /\.(wav|mp3|ogg|flac|m4a|aac)$/i;
-    const allowedFiles = files.filter((f) => allowedFileTypes.test(f.name));
+    const allowedFiles = files.filter((file) => allowedFileTypes.test(file.name));
 
     setUploadStatus('uploading');
     setUploadMessage(`Processing ${allowedFiles.length} file(s)...`);
@@ -133,12 +133,12 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
       allowedFiles.map(async (file) => {
         const formData = new FormData();
         formData.append('file', file);
-        const res = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData });
-        if (!res.ok) throw new Error('Failed');
+        const response = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData });
+        if (!response.ok) throw new Error('Failed');
       })
     );
-    const successCount = results.filter((r) => r.status === 'fulfilled').length;
-    const failCount = results.filter((r) => r.status === 'rejected').length;
+    const successCount = results.filter((result) => result.status === 'fulfilled').length;
+    const failCount = results.filter((result) => result.status === 'rejected').length;
 
     if (successCount > 0) {
       setUploadStatus('idle');
@@ -159,11 +159,11 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
   };
 
   const toggleSelected = (id: number) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+    setSelectedIds((previousSelectedIds) => {
+      const updatedSelectedIds = new Set(previousSelectedIds);
+      if (updatedSelectedIds.has(id)) updatedSelectedIds.delete(id);
+      else updatedSelectedIds.add(id);
+      return updatedSelectedIds;
     });
   };
 
@@ -175,32 +175,32 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
         setConfirmAction(null);
         return;
       }
-      const res = await fetch(`${API_BASE}/api/sounds/hide-builtin`, {
+      const response = await fetch(`${API_BASE}/api/sounds/hide-builtin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),
       });
-      if (!res.ok) throw new Error('Failed to hide built-in sounds');
+      if (!response.ok) throw new Error('Failed to hide built-in sounds');
       setConfirmAction(null);
       refreshGalaxy();
       setPanelMessage('All built-in sounds hidden');
       fetchUserUploadedSounds().then(setUploadedFiles).catch(() => {});
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Failed to hide built-in sounds');
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Failed to hide built-in sounds');
     }
   };
 
   const deleteAllUser = async () => {
     setDeleteError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/sounds/user/all`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete user sounds');
+      const response = await fetch(`${API_BASE}/api/sounds/user/all`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to delete user sounds');
       setConfirmAction(null);
       refreshGalaxy();
       setUploadedFiles([]);
       setPanelMessage('All user sounds deleted');
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Failed to delete user sounds');
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Failed to delete user sounds');
     }
   };
 
@@ -209,20 +209,20 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     setDeleteError(null);
     const userIdsInt = [...selectedIds];
     try {
-      const bulkRes = await fetch(`${API_BASE}/api/sounds/bulk`, {
+      const response = await fetch(`${API_BASE}/api/sounds/bulk`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: userIdsInt }),
       });
-      if (!bulkRes.ok) throw new Error('Failed to delete user sounds');
+      if (!response.ok) throw new Error('Failed to delete user sounds');
       setConfirmAction(null);
       setSelectionMode(false);
       setSelectedIds(new Set());
       refreshGalaxy();
       fetchUserUploadedSounds().then(setUploadedFiles).catch(() => {});
       setPanelMessage(`Deleted ${userIdsInt.length} sound(s)`);
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Failed to delete selected sounds');
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Failed to delete selected sounds');
     }
   };
 
@@ -240,16 +240,16 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
         setRestoreMessage('No hidden built-in sounds');
         return;
       }
-      const res = await fetch(`${API_BASE}/api/sounds/show-builtin`, {
+      const response = await fetch(`${API_BASE}/api/sounds/show-builtin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),
       });
-      if (!res.ok) throw new Error('Failed to restore built-in sounds');
+      if (!response.ok) throw new Error('Failed to restore built-in sounds');
       refreshGalaxy();
       setRestoreMessage(`Restored ${ids.length} built-in sound(s)`);
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Failed to restore built-in sounds');
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Failed to restore built-in sounds');
     }
   };
 
@@ -299,7 +299,7 @@ function HiddenFileInputs({
 }: {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   folderInputRef: React.RefObject<HTMLInputElement | null>;
-  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
     <>
@@ -360,27 +360,27 @@ function UploadDropdown({
   onPlay: (url: string) => void;
   onHighlight: (url: string | null) => void;
   selectionMode: boolean;
-  setSelectionMode: (v: boolean) => void;
+  setSelectionMode: (value: boolean) => void;
   enterSelectionMode: () => void;
   selectedIds: Set<number>;
   toggleSelected: (id: number) => void;
   confirmAction: ConfirmAction;
-  setConfirmAction: (a: ConfirmAction) => void;
+  setConfirmAction: (action: ConfirmAction) => void;
   deleteError: string | null;
-  setDeleteError: (err: string | null) => void;
+  setDeleteError: (error: string | null) => void;
   panelMessage: string | null;
-  setPanelMessage: (m: string | null) => void;
+  setPanelMessage: (message: string | null) => void;
   restoreMessage: string | null;
-  setRestoreMessage: (m: string | null) => void;
+  setRestoreMessage: (message: string | null) => void;
   uploadPanelMessage: string | null;
-  setUploadPanelMessage: (m: string | null) => void;
+  setUploadPanelMessage: (message: string | null) => void;
   uploadPanelMessageType: 'success' | 'error';
   deleteAllBuiltin: () => Promise<void>;
   deleteAllUser: () => Promise<void>;
   deleteSelected: () => Promise<void>;
   restoreAllBuiltin: () => Promise<void>;
   confirmRestore: boolean;
-  setConfirmRestore: (v: boolean) => void;
+  setConfirmRestore: (value: boolean) => void;
   restoreConfirmRef: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
@@ -448,40 +448,39 @@ function UploadDropdown({
                 </button>
               </div>
             )}
-            {deleteError && <p className="settings-upload-error">{deleteError}</p>}
             {uploadedFiles.length === 0 ? (
               <span className="settings-uploaded-list-empty">No uploads yet</span>
             ) : (
               <ul className="settings-uploaded-list-names">
-                {uploadedFiles.map((f) =>
+                {uploadedFiles.map((uploadedFile) =>
                   selectionMode ? (
-                    <li key={f.id}>
+                    <li key={uploadedFile.id}>
                       <label className="settings-delete-checkbox-row">
                         <input
                           type="checkbox"
-                          checked={selectedIds.has(f.id)}
-                          onChange={() => toggleSelected(f.id)}
-                          aria-label={`Select ${displayOnlySoundFileName(f.name)}`}
+                          checked={selectedIds.has(uploadedFile.id)}
+                          onChange={() => toggleSelected(uploadedFile.id)}
+                          aria-label={`Select ${displayOnlySoundFileName(uploadedFile.name)}`}
                         />
-                        <span className="settings-delete-checkbox-name">{displayOnlySoundFileName(f.name)}</span>
+                        <span className="settings-delete-checkbox-name">{displayOnlySoundFileName(uploadedFile.name)}</span>
                       </label>
                     </li>
                   ) : (
-                    <li key={f.id}>
+                    <li key={uploadedFile.id}>
                       <button
                         type="button"
                         className="settings-uploaded-list-play"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          if (f.audioUrl) onPlay(f.audioUrl);
+                        onClick={(event) => {
+                          event.preventDefault();
+                          if (uploadedFile.audioUrl) onPlay(uploadedFile.audioUrl);
                         }}
-                        onMouseEnter={() => onHighlight(f.audioUrl)}
+                        onMouseEnter={() => onHighlight(uploadedFile.audioUrl)}
                         onMouseLeave={() => onHighlight(null)}
-                        title={`Play ${displayOnlySoundFileName(f.name)}`}
-                        aria-label={`Play ${displayOnlySoundFileName(f.name)}`}
+                        title={`Play ${displayOnlySoundFileName(uploadedFile.name)}`}
+                        aria-label={`Play ${displayOnlySoundFileName(uploadedFile.name)}`}
                       >
                         <Play size={14} aria-hidden />
-                        <span>{displayOnlySoundFileName(f.name)}</span>
+                        <span>{displayOnlySoundFileName(uploadedFile.name)}</span>
                       </button>
                     </li>
                   )
