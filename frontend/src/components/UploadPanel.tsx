@@ -4,6 +4,13 @@ import { useAppStore } from '../store/useAppStore';
 import { playAudioUrl } from '../useTone';
 const API_BASE = '';
 
+/** Show only the file name (last path segment), not folder path. */
+function displayOnlySoundFileName(name: string): string {
+  if (!name) return 'Unknown';
+  const i = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
+  return i === -1 ? name : name.slice(i + 1);
+}
+
 interface UploadedFile {
   id: number;
   name: string;
@@ -360,9 +367,9 @@ function UploadDropdown({
                           type="checkbox"
                           checked={selectedIds.has(f.id)}
                           onChange={() => toggleSelected(f.id)}
-                          aria-label={`Select ${f.name}`}
+                          aria-label={`Select ${displayOnlySoundFileName(f.name)}`}
                         />
-                        <span className="settings-delete-checkbox-name">{f.name}</span>
+                        <span className="settings-delete-checkbox-name">{displayOnlySoundFileName(f.name)}</span>
                       </label>
                     </li>
                   ) : (
@@ -376,11 +383,11 @@ function UploadDropdown({
                         }}
                         onMouseEnter={() => onHighlight(f.audioUrl)}
                         onMouseLeave={() => onHighlight(null)}
-                        title={`Play ${f.name}`}
-                        aria-label={`Play ${f.name}`}
+                        title={`Play ${displayOnlySoundFileName(f.name)}`}
+                        aria-label={`Play ${displayOnlySoundFileName(f.name)}`}
                       >
                         <Play size={14} aria-hidden />
-                        <span>{f.name}</span>
+                        <span>{displayOnlySoundFileName(f.name)}</span>
                       </button>
                     </li>
                   )
