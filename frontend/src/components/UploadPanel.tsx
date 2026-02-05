@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Play, FileUp, FolderUp, Trash2, ListChecks, X } from 'lucide-react';
+import { Upload, Play, FileUp, FolderUp, Trash2, ListChecks, X, RotateCcw } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { playAudioUrl } from '../useTone';
 const API_BASE = '';
@@ -44,19 +44,28 @@ async function fetchAllBuiltinIds(): Promise<string[]> {
   return Array.isArray(data?.ids) ? data.ids : [];
 }
 
+async function fetchHiddenBuiltinIds(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/sounds/hidden-builtin`);
+  const data = res.ok ? await res.json() : { hidden_ids: [] };
+  return Array.isArray(data?.hidden_ids) ? data.hidden_ids : [];
+}
+
 export type ConfirmAction = null | 'delete-all-builtin' | 'delete-all-user' | 'delete-selected';
 
 function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const uploadWrapRef = useRef<HTMLDivElement>(null);
+  const restoreConfirmRef = useRef<HTMLDivElement>(null);
   const [isUploadDropdownOpen, setIsUploadDropdownOpen] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+  const [confirmRestore, setConfirmRestore] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [panelMessage, setPanelMessage] = useState<string | null>(null);
+  const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   const [uploadPanelMessage, setUploadPanelMessage] = useState<string | null>(null);
   const [uploadPanelMessageType, setUploadPanelMessageType] = useState<'success' | 'error'>('success');
   const refreshGalaxy = useAppStore((s) => s.refreshGalaxy);
@@ -77,12 +86,22 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     if (!isUploadDropdownOpen) return;
     let cancelled = false;
     setPanelMessage(null);
+    setRestoreMessage(null);
     setUploadPanelMessage(null);
     fetchUserUploadedSounds()
       .then((files) => { if (!cancelled) setUploadedFiles(files); })
       .catch(() => { if (!cancelled) setUploadedFiles([]); });
     return () => { cancelled = true; };
   }, [isUploadDropdownOpen]);
+
+  useEffect(() => {
+    if (!confirmRestore) return;
+    const el = restoreConfirmRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }, [confirmRestore]);
 
   const handleFileClick = () => {
     setUploadStatus('idle');
@@ -210,6 +229,28 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     setSelectionMode(true);
   };
 
+  const restoreAllBuiltin = async () => {
+    setDeleteError(null);
+    setConfirmRestore(false);
+    try {
+      const ids = await fetchHiddenBuiltinIds();
+      if (ids.length === 0) {
+        setRestoreMessage('No hidden built-in sounds');
+        return;
+      }
+      const res = await fetch(`${API_BASE}/api/sounds/show-builtin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) throw new Error('Failed to restore built-in sounds');
+      refreshGalaxy();
+      setRestoreMessage(`Restored ${ids.length} built-in sound(s)`);
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'Failed to restore built-in sounds');
+    }
+  };
+
   return {
     fileInputRef,
     folderInputRef,
@@ -232,12 +273,18 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     setDeleteError,
     panelMessage,
     setPanelMessage,
+    restoreMessage,
+    setRestoreMessage,
     uploadPanelMessage,
     setUploadPanelMessage,
     uploadPanelMessageType,
     deleteAllBuiltin,
     deleteAllUser,
     deleteSelected,
+    restoreAllBuiltin,
+    confirmRestore,
+    setConfirmRestore,
+    restoreConfirmRef,
   };
 }
 
@@ -291,12 +338,18 @@ function UploadDropdown({
   setDeleteError,
   panelMessage,
   setPanelMessage,
+  restoreMessage,
+  setRestoreMessage,
   uploadPanelMessage,
   setUploadPanelMessage,
   uploadPanelMessageType,
   deleteAllBuiltin,
   deleteAllUser,
   deleteSelected,
+  restoreAllBuiltin,
+  confirmRestore,
+  setConfirmRestore,
+  restoreConfirmRef,
 }: {
   uploadStatus: UploadStatus;
   uploadedFiles: UploadedFile[];
@@ -315,12 +368,18 @@ function UploadDropdown({
   setDeleteError: (err: string | null) => void;
   panelMessage: string | null;
   setPanelMessage: (m: string | null) => void;
+  restoreMessage: string | null;
+  setRestoreMessage: (m: string | null) => void;
   uploadPanelMessage: string | null;
   setUploadPanelMessage: (m: string | null) => void;
   uploadPanelMessageType: 'success' | 'error';
   deleteAllBuiltin: () => Promise<void>;
   deleteAllUser: () => Promise<void>;
   deleteSelected: () => Promise<void>;
+  restoreAllBuiltin: () => Promise<void>;
+  confirmRestore: boolean;
+  setConfirmRestore: (v: boolean) => void;
+  restoreConfirmRef: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
     <div className="settings-upload-dropdown-wrapper">
@@ -495,6 +554,58 @@ function UploadDropdown({
                   </button>
                 )}
               </div>
+              <div className="settings-restore-section">
+                <span className="settings-uploaded-list-title">Restore</span>
+                {restoreMessage && (
+                  <div className="settings-message-row" role="status">
+                    <span className="settings-upload-panel-message">{restoreMessage}</span>
+                    <button
+                      type="button"
+                      className="settings-message-dismiss"
+                      onClick={() => setRestoreMessage(null)}
+                      aria-label="Dismiss message"
+                    >
+                      <X size={14} aria-hidden />
+                    </button>
+                  </div>
+                )}
+                {confirmRestore ? (
+                  <div ref={restoreConfirmRef} className="settings-delete-confirm">
+                    <p className="settings-delete-confirm-text">
+                      Restore all hidden built-in sounds?
+                    </p>
+                    <div className="settings-action-row">
+                      <button
+                        type="button"
+                        className="settings-action-btn settings-action-btn--restore"
+                        onClick={restoreAllBuiltin}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        className="settings-action-btn"
+                        onClick={() => { setConfirmRestore(false); setDeleteError(null); }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="settings-delete-buttons">
+                    <button
+                      type="button"
+                      className="settings-action-btn settings-action-btn--restore"
+                      onClick={() => setConfirmRestore(true)}
+                      disabled={uploadStatus === 'uploading'}
+                      title="Restore all deleted built-in sounds"
+                    >
+                      <RotateCcw size={14} />
+                      <span>Restore all deleted built-in</span>
+                    </button>
+                  </div>
+                )}
+              </div>
               {deleteError && <p className="settings-upload-error">{deleteError}</p>}
             </div>
           </>
@@ -545,12 +656,18 @@ export function UploadPanel(props: UploadPanelProps) {
             setDeleteError={logic.setDeleteError}
             panelMessage={logic.panelMessage}
             setPanelMessage={logic.setPanelMessage}
+            restoreMessage={logic.restoreMessage}
+            setRestoreMessage={logic.setRestoreMessage}
             uploadPanelMessage={logic.uploadPanelMessage}
             setUploadPanelMessage={logic.setUploadPanelMessage}
             uploadPanelMessageType={logic.uploadPanelMessageType}
             deleteAllBuiltin={logic.deleteAllBuiltin}
             deleteAllUser={logic.deleteAllUser}
             deleteSelected={logic.deleteSelected}
+            restoreAllBuiltin={logic.restoreAllBuiltin}
+            confirmRestore={logic.confirmRestore}
+            setConfirmRestore={logic.setConfirmRestore}
+            restoreConfirmRef={logic.restoreConfirmRef}
           />
         )}
       </div>

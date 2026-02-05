@@ -114,6 +114,13 @@ def _normalize_audio_url(item: dict, base: str) -> str:
     return f"{base}/{url.lstrip('/')}"
 
 
+@router.get("/sounds/hidden-builtin")
+async def get_hidden_builtin_ids() -> dict:
+    """GET /api/sounds/hidden-builtin — returns list of currently hidden built-in sound IDs."""
+    hidden = list(_load_hidden_builtin_ids())
+    return {"hidden_ids": hidden}
+
+
 @router.get("/sounds/builtin-ids")
 async def get_all_builtin_ids() -> dict:
     """GET /api/sounds/builtin-ids — returns all built-in sound IDs from builtin.json (including hidden)."""
