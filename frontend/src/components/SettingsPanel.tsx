@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Settings } from 'lucide-react';
-import { useAppStore } from '../store/useAppStore';
+import { useAppStore, type PlayMode } from '../store/useAppStore';
 import { UploadPanel, type UploadStatus } from './UploadPanel';
 import { setMasterVolume } from '../useTone';
 
@@ -13,6 +13,8 @@ function useSettingsPanelLogic() {
   const [uploadMessage, setUploadMessage] = useState('');
   const hoverTooltipMode = useAppStore((s) => s.hoverTooltipMode);
   const setHoverTooltipMode = useAppStore((s) => s.setHoverTooltipMode);
+  const playMode = useAppStore((s) => s.playMode);
+  const setPlayMode = useAppStore((s) => s.setPlayMode);
   const volume = useAppStore((s) => s.volume);
   const setVolume = useAppStore((s) => s.setVolume);
 
@@ -37,6 +39,8 @@ function useSettingsPanelLogic() {
     setUploadMessage,
     hoverTooltipMode,
     setHoverTooltipMode,
+    playMode,
+    setPlayMode,
     volume,
     setVolume,
   };
@@ -88,6 +92,36 @@ function UploadStatusMessage({ uploadStatus, uploadMessage }: { uploadStatus: Up
       {uploadStatus === 'uploading' && <span className="settings-upload-pending">Uploading…</span>}
       {uploadStatus === 'ok' && <span className="settings-upload-ok" role="status">{uploadMessage}</span>}
       {uploadStatus === 'error' && <span className="settings-upload-error" role="alert">{uploadMessage}</span>}
+    </div>
+  );
+}
+
+function PlayModeOptions({ playMode, setPlayMode }: { playMode: PlayMode; setPlayMode: (mode: PlayMode) => void }) {
+  return (
+    <div className="settings-group">
+      <span className="settings-label">Play sound</span>
+      <div className="settings-options">
+        <label className="settings-option">
+          <input
+            type="radio"
+            name="playMode"
+            value="hover"
+            checked={playMode === 'hover'}
+            onChange={() => setPlayMode('hover')}
+          />
+          <span>On hover</span>
+        </label>
+        <label className="settings-option">
+          <input
+            type="radio"
+            name="playMode"
+            value="click"
+            checked={playMode === 'click'}
+            onChange={() => setPlayMode('click')}
+          />
+          <span>On click</span>
+        </label>
+      </div>
     </div>
   );
 }
@@ -155,11 +189,30 @@ function VolumeControl({ volume, setVolume }: { volume: number; setVolume: (volu
   );
 }
 
-function SettingsDropdown({ uploadStatus, uploadMessage, hoverTooltipMode, setHoverTooltipMode, volume, setVolume }: { uploadStatus: UploadStatus; uploadMessage: string; hoverTooltipMode: string; setHoverTooltipMode: (mode: 'follow' | 'fixed') => void; volume: number; setVolume: (volume: number) => void }) {
+function SettingsDropdown({
+  uploadStatus,
+  uploadMessage,
+  playMode,
+  setPlayMode,
+  hoverTooltipMode,
+  setHoverTooltipMode,
+  volume,
+  setVolume,
+}: {
+  uploadStatus: UploadStatus;
+  uploadMessage: string;
+  playMode: PlayMode;
+  setPlayMode: (mode: PlayMode) => void;
+  hoverTooltipMode: string;
+  setHoverTooltipMode: (mode: 'follow' | 'fixed') => void;
+  volume: number;
+  setVolume: (volume: number) => void;
+}) {
   return (
     <div className="settings-dropdown" role="menu">
       <UploadStatusMessage uploadStatus={uploadStatus} uploadMessage={uploadMessage} />
       <VolumeControl volume={volume} setVolume={setVolume} />
+      <PlayModeOptions playMode={playMode} setPlayMode={setPlayMode} />
       <HoverTooltipOptions hoverTooltipMode={hoverTooltipMode} setHoverTooltipMode={setHoverTooltipMode} />
     </div>
   );
@@ -182,6 +235,8 @@ export function SettingsPanel() {
         <SettingsDropdown
           uploadStatus={logic.uploadStatus}
           uploadMessage={logic.uploadMessage}
+          playMode={logic.playMode}
+          setPlayMode={logic.setPlayMode}
           hoverTooltipMode={logic.hoverTooltipMode}
           setHoverTooltipMode={logic.setHoverTooltipMode}
           volume={logic.volume}

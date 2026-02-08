@@ -41,6 +41,9 @@ async function fetchAllPoints(): Promise<{ builtin: SoundPoint[]; user: SoundPoi
 /** Hit-test radius in normalized device coords [-1,1]; points within this distance of cursor count as hovered. */
 const HOVER_NDC_RADIUS = 0.04;
 
+/** Delay (ms) before playing sound on hover; avoids click artifacts when moving quickly between points. */
+const HOVER_PLAY_DELAY_MS = 30;
+
 function getSoundPointPosition3D(soundPoint: SoundPoint): [number, number, number] {
   if (soundPoint.coords_3d && soundPoint.coords_3d.length === 3) {
     return [soundPoint.coords_3d[0], soundPoint.coords_3d[1], soundPoint.coords_3d[2]];
@@ -102,6 +105,7 @@ function useSceneLogic() {
   const selectedId = useAppStore((s) => s.selectedId);
   const setSelectedId = useAppStore((s) => s.setSelectedId);
   const setPlayingId = useAppStore((s) => s.setPlayingId);
+  const playMode = useAppStore((s) => s.playMode);
   const galaxyVersion = useAppStore((s) => s.galaxyVersion);
   const highlightedListAudioUrl = useAppStore((s) => s.highlightedListAudioUrl);
 
@@ -111,6 +115,7 @@ function useSceneLogic() {
   const isPointerOverScene = useRef(false);
   const worldPosition = useRef(new THREE.Vector3());
   const normalizedDeviceCoords = useRef(new THREE.Vector3());
+  const hoverPlayStopRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,11 +133,9 @@ function useSceneLogic() {
     };
   }, [galaxyVersion]);
 
+  // Click mode: play sound for selected point (set on pointer down).
   useEffect(() => {
-    if (!selectedId || points.length === 0) {
-      setPlayingId(null);
-      return;
-    }
+    if (playMode !== 'click' || !selectedId || points.length === 0) return;
     const point = points.find((p) => String(p.id) === String(selectedId));
     if (!point?.audioUrl) {
       setPlayingId(null);
@@ -144,7 +147,27 @@ function useSceneLogic() {
       stop();
       setPlayingId(null);
     };
-  }, [selectedId, points, setPlayingId]);
+  }, [playMode, selectedId, points, setPlayingId]);
+
+  // Hover mode: play sound for hovered point after a short delay; stop when hover leaves or changes.
+  useEffect(() => {
+    if (playMode !== 'hover' || !hoveredId || points.length === 0) return;
+    const point = points.find((p) => String(p.id) === String(hoveredId));
+    if (!point?.audioUrl) return;
+
+    const timeoutId = window.setTimeout(() => {
+      startTone();
+      setPlayingId(hoveredId);
+      hoverPlayStopRef.current = playAudioUrl(point.audioUrl, () => setPlayingId(null));
+    }, HOVER_PLAY_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      hoverPlayStopRef.current?.();
+      hoverPlayStopRef.current = null;
+      setPlayingId(null);
+    };
+  }, [playMode, hoveredId, points, setPlayingId]);
 
   useFrame(() => {
     if (!isPointerOverScene.current) {
@@ -185,7 +208,7 @@ function useSceneLogic() {
 
   const handlePointerDown = () => {
     startTone();
-    if (hoveredId != null) setSelectedId(hoveredId);
+    if (playMode === 'click' && hoveredId != null) setSelectedId(hoveredId);
   };
 
   const builtinPositions = useMemo(() => soundPointsToPositions(builtinPoints), [builtinPoints]);
