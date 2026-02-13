@@ -1,4 +1,5 @@
-"""Galaxy API: GET /api/sounds and GET /api/sounds/:id; hide/show built-in; delete user sounds."""
+"""Galaxy API: GET /api/sounds and GET /api/sounds/:id; hide/show built-in; delete user sounds; recalculate UMAP."""
+import asyncio
 import json
 from pathlib import Path
 from typing import Literal
@@ -12,6 +13,8 @@ from app.config import Settings
 from app.database import get_db
 from app.models import Sound
 from app.schemas import Point, PointsResponse
+from app.soundspace import SoundSpaceError, fit_umap_get_coords
+from app.soundspace.embedding import SoundSpaceEmbedder
 
 router = APIRouter(prefix="/api", tags=["sounds"])
 _settings = Settings()
@@ -32,6 +35,15 @@ class BulkIdsBody(BaseModel):
     """Request body for bulk delete: list of user sound IDs (integers)."""
 
     ids: list[int] = []
+
+
+class RecalculateBody(BaseModel):
+    """Request body for recalculate mapping: ids list for custom selection, or None/omit for all user."""
+
+    ids: list[int] | None = None
+
+
+_UMAP_MODEL_PATH = _BACKEND_ROOT / _settings.static_dir / "meta" / "umap_model.joblib"
 
 
 def _static_file_path(relative_path: str) -> Path:
@@ -233,6 +245,54 @@ async def delete_all_user_sounds(db: AsyncSession = Depends(get_db)) -> dict:
         await db.delete(sound)
         deleted_count += 1
     return {"deleted": deleted_count}
+
+
+@router.post("/sounds/recalculate-mapping")
+async def recalculate_mapping(body: RecalculateBody, db: AsyncSession = Depends(get_db)) -> dict:
+    """POST /api/sounds/recalculate-mapping — fit UMAP on selected or all user sounds, update coords. Body: { ids: number[] } for selection, or omit ids for all user."""
+    if body.ids is None:
+        result = await db.execute(select(Sound))
+        sounds = result.scalars().all()
+    else:
+        if not body.ids:
+            raise HTTPException(status_code=400, detail="No sound ids provided")
+        result = await db.execute(select(Sound).where(Sound.id.in_(body.ids)))
+        sounds = result.scalars().all()
+
+    embedder = SoundSpaceEmbedder()
+    successful_paths: list[Path] = []
+    successful_sound_ids: list[int] = []
+    for sound in sounds:
+        path = _static_file_path(sound.audio_path)
+        try:
+            embedder.extract_features_from_audio(path)
+            successful_paths.append(path)
+            successful_sound_ids.append(sound.id)
+        except Exception:
+            continue
+
+    if not successful_paths:
+        raise HTTPException(
+            status_code=400,
+            detail="Feature extraction failed for all selected files",
+        )
+
+    save_model_path = _UMAP_MODEL_PATH if body.ids is None else None
+
+    try:
+        coords_list = await asyncio.to_thread(fit_umap_get_coords, successful_paths, save_model_path=save_model_path, n_components=3)
+    except (SoundSpaceError, ValueError, Exception) as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+
+    id_to_sound = {sound.id: sound for sound in sounds}
+    for sound_id, coords in zip(successful_sound_ids, coords_list, strict=True):
+        sound = id_to_sound.get(sound_id)
+        if sound is not None:
+            sound.coords_2d = coords[:2]
+            sound.coords_3d = coords[:3] if len(coords) >= 3 else [coords[0], coords[1], 0.0]
+
+    await db.commit()
+    return {"updated": len(successful_sound_ids)}
 
 
 @router.delete("/sounds/{sound_id}")

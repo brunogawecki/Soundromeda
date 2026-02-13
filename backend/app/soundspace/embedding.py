@@ -176,8 +176,8 @@ class SoundSpaceEmbedder:
 
         if not model_path.exists():
             raise SoundSpaceError(
-                f"No layout model at {model_path}. Run fit_umap_get_coords with save_model_path "
-                "on built-in or seed audio first."
+                "Layout model not found. From the backend directory run: "
+                "python scripts/build_builtin.py [audio_directory] to create it (e.g. python scripts/build_builtin.py static/audio/UK_Garage_Samples)."
             )
         try:
             return self._transform_with_umap_model(path, model_path)
