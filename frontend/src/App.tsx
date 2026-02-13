@@ -1,11 +1,30 @@
-import { useCallback, useEffect } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useCallback, useEffect, useRef } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
+import * as THREE from 'three';
 import { useAppStore } from './store/useAppStore';
 import { useToneStart } from './useTone';
 import { Scene } from './components/Scene';
 import { SettingsPanel } from './components/SettingsPanel';
 import './App.css';
+
+/** Lerp speed for orbit target animation (higher = faster). */
+const ORBIT_TARGET_LERP_SPEED = 3;
+
+function AnimatedOrbitControls() {
+  const controlsRef = useRef<React.ComponentRef<typeof OrbitControls> | null>(null);
+  const orbitTarget = useAppStore((s) => s.orbitTarget);
+  const desiredTarget = useRef(new THREE.Vector3(orbitTarget[0], orbitTarget[1], orbitTarget[2]));
+
+  useFrame((_, delta) => {
+    const controls = controlsRef.current as unknown as { target: THREE.Vector3 } | null;
+    if (!controls?.target) return;
+    desiredTarget.current.set(orbitTarget[0], orbitTarget[1], orbitTarget[2]);
+    controls.target.lerp(desiredTarget.current, 1 - Math.exp(-ORBIT_TARGET_LERP_SPEED * delta));
+  });
+
+  return <OrbitControls ref={controlsRef} />;
+}
 
 function App() {
   useAppStore(); // wire Zustand into the tree
@@ -35,7 +54,7 @@ function App() {
       >
         <color attach="background" args={['#0c0c0e']} />
         <Scene />
-        <OrbitControls />
+        <AnimatedOrbitControls />
       </Canvas>
       {showFollowTooltip && (
         <div

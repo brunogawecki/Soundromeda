@@ -16,6 +16,8 @@ interface AppState {
   galaxyVersion: number;
   /** audioUrl of the sound hovered in the uploaded-files list; Scene highlights that point. */
   highlightedListAudioUrl: string | null;
+  orbitTarget: [number, number, number];
+  orbitCenterPointId: string | null;
   setSelectedId: (id: string | null) => void;
   setPlayingId: (id: string | null) => void;
   setHoveredId: (id: string | null) => void;
@@ -25,6 +27,8 @@ interface AppState {
   setPlayMode: (mode: PlayMode) => void;
   setVolume: (volume: number) => void;
   setHighlightedListAudioUrl: (url: string | null) => void;
+  setOrbitTarget: (x: number, y: number, z: number) => void;
+  setOrbitCenterPointId: (id: string | null) => void;
   refreshGalaxy: () => void;
 }
 
@@ -40,6 +44,8 @@ export const useAppStore = create<AppState>((set) => ({
   volume: 1.0,
   galaxyVersion: 0,
   highlightedListAudioUrl: null,
+  orbitTarget: [0, 0, 0],
+  orbitCenterPointId: null,
   setSelectedId: (id) => set({ selectedId: id }),
   setPlayingId: (id) => set({ playingId: id }),
   setHoveredId: (id) => set({ hoveredId: id }),
@@ -49,5 +55,7 @@ export const useAppStore = create<AppState>((set) => ({
   setPlayMode: (mode) => set({ playMode: mode }),
   setVolume: (volume) => set({ volume }),
   setHighlightedListAudioUrl: (url) => set({ highlightedListAudioUrl: url }),
+  setOrbitTarget: (x, y, z) => set({ orbitTarget: [x, y, z] }),
+  setOrbitCenterPointId: (id) => set({ orbitCenterPointId: id }),
   refreshGalaxy: () => set((s) => ({ galaxyVersion: s.galaxyVersion + 1 })),
 }));

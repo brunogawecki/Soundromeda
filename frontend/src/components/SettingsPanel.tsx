@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Settings } from 'lucide-react';
+import { RotateCcw, Settings } from 'lucide-react';
 import { useAppStore, type PlayMode } from '../store/useAppStore';
 import { UploadPanel, type UploadStatus } from './UploadPanel';
 import { setMasterVolume } from '../useTone';
@@ -156,6 +156,28 @@ function HoverTooltipOptions({ hoverTooltipMode, setHoverTooltipMode }: { hoverT
   );
 }
 
+function ResetViewButton() {
+  const setOrbitTarget = useAppStore((s) => s.setOrbitTarget);
+  const setOrbitCenterPointId = useAppStore((s) => s.setOrbitCenterPointId);
+
+  const handleReset = () => {
+    setOrbitTarget(0, 0, 0);
+    setOrbitCenterPointId(null);
+  };
+
+  return (
+    <button
+      type="button"
+      className="settings-reset-view"
+      onClick={handleReset}
+      aria-label="Reset to default view"
+    >
+      <RotateCcw size={16} aria-hidden />
+      <span>Reset to default view</span>
+    </button>
+  );
+}
+
 function VolumeControl({ volume, setVolume }: { volume: number; setVolume: (volume: number) => void }) {
   // Sync volume state with master volume node
   useEffect(() => {
@@ -214,6 +236,7 @@ function SettingsDropdown({
       <VolumeControl volume={volume} setVolume={setVolume} />
       <PlayModeOptions playMode={playMode} setPlayMode={setPlayMode} />
       <HoverTooltipOptions hoverTooltipMode={hoverTooltipMode} setHoverTooltipMode={setHoverTooltipMode} />
+      <ResetViewButton />
     </div>
   );
 }

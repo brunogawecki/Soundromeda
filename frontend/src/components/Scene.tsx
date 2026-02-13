@@ -108,6 +108,9 @@ function useSceneLogic() {
   const playMode = useAppStore((s) => s.playMode);
   const galaxyVersion = useAppStore((s) => s.galaxyVersion);
   const highlightedListAudioUrl = useAppStore((s) => s.highlightedListAudioUrl);
+  const orbitCenterPointId = useAppStore((s) => s.orbitCenterPointId);
+  const setOrbitTarget = useAppStore((s) => s.setOrbitTarget);
+  const setOrbitCenterPointId = useAppStore((s) => s.setOrbitCenterPointId);
 
   const { camera } = useThree();
   const startTone = useToneStart();
@@ -211,6 +214,15 @@ function useSceneLogic() {
     if (playMode === 'click' && hoveredId != null) setSelectedId(hoveredId);
   };
 
+  const handleDoubleClick = () => {
+    if (hoveredId == null || points.length === 0) return;
+    const point = points.find((p) => String(p.id) === String(hoveredId));
+    if (!point) return;
+    const [x, y, z] = getSoundPointPosition3D(point);
+    setOrbitTarget(x, y, z);
+    setOrbitCenterPointId(hoveredId);
+  };
+
   const builtinPositions = useMemo(() => soundPointsToPositions(builtinPoints), [builtinPoints]);
   const userPositions = useMemo(() => soundPointsToPositions(userPoints), [userPoints]);
 
@@ -225,10 +237,12 @@ function useSceneLogic() {
     hoveredId,
     selectedId,
     highlightedListAudioUrl,
+    orbitCenterPointId,
     handlePointerMove,
     handlePointerEnter,
     handlePointerLeave,
     handlePointerDown,
+    handleDoubleClick,
   };
 }
 
@@ -249,9 +263,10 @@ interface InvisibleHitPlaneProps {
   onPointerMove: (e: { pointer: { x: number; y: number }; nativeEvent: { clientX: number; clientY: number } }) => void;
   onPointerLeave: () => void;
   onPointerDown: () => void;
+  onDoubleClick: () => void;
 }
 
-function InvisibleHitPlane({ planeRef, onPointerEnter, onPointerMove, onPointerLeave, onPointerDown }: InvisibleHitPlaneProps) {
+function InvisibleHitPlane({ planeRef, onPointerEnter, onPointerMove, onPointerLeave, onPointerDown, onDoubleClick }: InvisibleHitPlaneProps) {
   return (
     <mesh
       ref={planeRef}
@@ -260,6 +275,7 @@ function InvisibleHitPlane({ planeRef, onPointerEnter, onPointerMove, onPointerL
       onPointerMove={onPointerMove}
       onPointerLeave={onPointerLeave}
       onPointerDown={onPointerDown}
+      onDoubleClick={onDoubleClick}
     >
       <planeGeometry args={[1e6, 1e6]} />
       <meshBasicMaterial visible={false} side={THREE.DoubleSide} />
@@ -321,6 +337,24 @@ function HighlightedListPointMarker({ points, highlightedListAudioUrl }: Highlig
   );
 }
 
+interface MarkOrbitCenterPointProps {
+  points: SoundPoint[];
+  orbitCenterPointId: string | null;
+}
+
+function MarkOrbitCenterPoint({ points, orbitCenterPointId }: MarkOrbitCenterPointProps) {
+  if (orbitCenterPointId == null) return null;
+  const point = points.find((x) => String(x.id) === String(orbitCenterPointId));
+  if (!point) return null;
+  const [x, y, z] = getSoundPointPosition3D(point);
+  return (
+    <mesh position={[x, y, z]} renderOrder={1}>
+      <sphereGeometry args={[0.04, 16, 16]} />
+      <meshBasicMaterial color="#22c55e" transparent opacity={0.9}/>
+    </mesh>
+  );
+}
+
 export function Scene() {
   const {
     points,
@@ -332,10 +366,12 @@ export function Scene() {
     planeRef,
     hoveredId,
     highlightedListAudioUrl,
+    orbitCenterPointId,
     handlePointerMove,
     handlePointerEnter,
     handlePointerLeave,
     handlePointerDown,
+    handleDoubleClick,
   } = useSceneLogic();
 
   if (points.length === 0) {
@@ -353,13 +389,14 @@ export function Scene() {
   return (
     <>
       <SceneLighting />
-      <InvisibleHitPlane planeRef={planeRef} onPointerEnter={handlePointerEnter} onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave} onPointerDown={handlePointerDown} />
+      <InvisibleHitPlane planeRef={planeRef} onPointerEnter={handlePointerEnter} onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick} />
       {/* Point clouds: builtin (blue), user (orange); primaryPointsRef used for hit-test (builtin or user when only user has points) */}
       {builtinPoints.length > 0 && <PointsCloud pointsRef={primaryPointsRef} positions={builtinPositions} color="#3b82f6" size={0.12} key={`builtin-${builtinPoints.length}`} />}
       {userPoints.length > 0 && <PointsCloud pointsRef={builtinPoints.length === 0 ? primaryPointsRef : undefined} positions={userPositions} color="#f97316" size={0.12} key={`user-${userPoints.length}`} />}
       {/* Hover + list-highlight markers */}
       <HoveredPointMarker points={points} hoveredId={hoveredId} />
       <HighlightedListPointMarker points={points} highlightedListAudioUrl={highlightedListAudioUrl} />
+      <MarkOrbitCenterPoint points={points} orbitCenterPointId={orbitCenterPointId} />
     </>
   );
 }

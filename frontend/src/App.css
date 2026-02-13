@@ -319,6 +319,28 @@
   accent-color: #3b82f6;
 }
 
+.settings-reset-view {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  margin-top: 0.25rem;
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.settings-reset-view:hover {
+  color: #e2e8f0;
+}
+
+.settings-reset-view svg {
+  flex-shrink: 0;
+}
+
 .settings-file-input {
   position: absolute;
   width: 0;
