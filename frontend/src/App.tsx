@@ -14,6 +14,7 @@ function App() {
   const pointerX = useAppStore((s) => s.pointerX);
   const pointerY = useAppStore((s) => s.pointerY);
   const hoverTooltipMode = useAppStore((s) => s.hoverTooltipMode);
+  const orbitTarget = useAppStore((s) => s.orbitTarget);
 
   const onInteraction = useCallback(() => {
     startTone();
@@ -35,7 +36,7 @@ function App() {
       >
         <color attach="background" args={['#0c0c0e']} />
         <Scene />
-        <OrbitControls />
+        <OrbitControls target={orbitTarget} />
       </Canvas>
       {showFollowTooltip && (
         <div
