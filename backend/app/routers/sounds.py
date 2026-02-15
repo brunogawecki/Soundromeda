@@ -38,9 +38,10 @@ class BulkIdsBody(BaseModel):
 
 
 class RecalculateBody(BaseModel):
-    """Request body for recalculate mapping: ids list for custom selection, or None/omit for all user."""
+    """Request body for recalculate mapping: ids list for custom selection, or None/omit for all user. include_builtin: when ids is None, fit UMAP on built-in + user sounds and update both."""
 
     ids: list[int] | None = None
+    include_builtin: bool = False
 
 
 _UMAP_MODEL_PATH = _BACKEND_ROOT / _settings.static_dir / "meta" / "umap_model.joblib"
@@ -70,6 +71,16 @@ async def _delete_user_sound_by_id(sound_id: int, db: AsyncSession) -> bool:
 def _base_url(request: Request) -> str:
     """Base URL for building audioUrl (no trailing slash)."""
     return str(request.base_url).rstrip("/")
+
+
+def _load_builtin_points_raw() -> list[dict]:
+    """Load built-in points from builtin.json (no request). Returns list of dicts with id, name, coords_2d, coords_3d, audio_path."""
+    if not _STATIC_META_PATH.exists():
+        return []
+    raw = _STATIC_META_PATH.read_text(encoding="utf-8")
+    data = json.loads(raw)
+    items = data.get("points", data) if isinstance(data, dict) else data
+    return list(items) if isinstance(items, list) else []
 
 
 def _load_hidden_builtin_ids() -> set[str]:
@@ -247,9 +258,47 @@ async def delete_all_user_sounds(db: AsyncSession = Depends(get_db)) -> dict:
     return {"deleted": deleted_count}
 
 
+def _builtin_audio_path(item: dict) -> str | None:
+    """Get relative audio path from a builtin point (audio_path or from audioUrl)."""
+    path = item.get("audio_path")
+    if path:
+        return path
+    url = item.get("audioUrl") or ""
+    if "/static/" in url:
+        return url.split("/static/", 1)[-1].lstrip("/")
+    return None
+
+
 @router.post("/sounds/recalculate-mapping")
 async def recalculate_mapping(body: RecalculateBody, db: AsyncSession = Depends(get_db)) -> dict:
-    """POST /api/sounds/recalculate-mapping — fit UMAP on selected or all user sounds, update coords. Body: { ids: number[] } for selection, or omit ids for all user."""
+    """POST /api/sounds/recalculate-mapping — fit UMAP on selected or all user sounds, update coords. Body: { ids?: number[], include_builtin?: bool }. Omit ids for all user; include_builtin=true fits built-in + user and updates both."""
+    include_builtin = body.include_builtin and body.ids is None
+    successful_paths: list[Path] = []
+    successful_ids: list[int | str] = []
+    successful_is_builtin: list[bool] = []
+    builtin_points_raw: list[dict] = []
+    embedder = SoundSpaceEmbedder()
+
+    if include_builtin:
+        builtin_points_raw = _load_builtin_points_raw()
+        for item in builtin_points_raw:
+            rel = _builtin_audio_path(item)
+            if not rel:
+                continue
+            path = _static_file_path(rel)
+            if not path.exists():
+                continue
+            bid = item.get("id")
+            if bid is None:
+                continue
+            try:
+                embedder.extract_features_from_audio(path)
+                successful_paths.append(path)
+                successful_ids.append(bid)
+                successful_is_builtin.append(True)
+            except Exception:
+                continue
+
     if body.ids is None:
         result = await db.execute(select(Sound))
         sounds = result.scalars().all()
@@ -259,15 +308,14 @@ async def recalculate_mapping(body: RecalculateBody, db: AsyncSession = Depends(
         result = await db.execute(select(Sound).where(Sound.id.in_(body.ids)))
         sounds = result.scalars().all()
 
-    embedder = SoundSpaceEmbedder()
-    successful_paths: list[Path] = []
-    successful_sound_ids: list[int] = []
+    id_to_sound = {s.id: s for s in sounds}
     for sound in sounds:
         path = _static_file_path(sound.audio_path)
         try:
             embedder.extract_features_from_audio(path)
             successful_paths.append(path)
-            successful_sound_ids.append(sound.id)
+            successful_ids.append(sound.id)
+            successful_is_builtin.append(False)
         except Exception:
             continue
 
@@ -284,15 +332,33 @@ async def recalculate_mapping(body: RecalculateBody, db: AsyncSession = Depends(
     except (SoundSpaceError, ValueError, Exception) as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
 
-    id_to_sound = {sound.id: sound for sound in sounds}
-    for sound_id, coords in zip(successful_sound_ids, coords_list, strict=True):
-        sound = id_to_sound.get(sound_id)
-        if sound is not None:
-            sound.coords_2d = coords[:2]
-            sound.coords_3d = coords[:3] if len(coords) >= 3 else [coords[0], coords[1], 0.0]
+    builtin_coords: dict[str | int, list[float]] = {}
+    for idx, (sid, is_builtin) in enumerate(zip(successful_ids, successful_is_builtin, strict=True)):
+        coords = coords_list[idx]
+        if is_builtin:
+            builtin_coords[sid] = coords
+        else:
+            sound = id_to_sound.get(sid)
+            if sound is not None:
+                sound.coords_2d = coords[:2]
+                sound.coords_3d = coords[:3] if len(coords) >= 3 else [coords[0], coords[1], 0.0]
+
+    if builtin_coords and builtin_points_raw:
+        for point in builtin_points_raw:
+            pid = point.get("id")
+            if pid is not None and pid in builtin_coords:
+                c = builtin_coords[pid]
+                point["coords_2d"] = c[:2]
+                point["coords_3d"] = c[:3] if len(c) >= 3 else [c[0], c[1], 0.0]
+        _STATIC_META_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _STATIC_META_PATH.write_text(
+            json.dumps({"points": builtin_points_raw}, indent=2),
+            encoding="utf-8",
+        )
 
     await db.commit()
-    return {"updated": len(successful_sound_ids)}
+    user_updated = sum(1 for b in successful_is_builtin if not b)
+    return {"updated": user_updated + len(builtin_coords)}
 
 
 @router.delete("/sounds/{sound_id}")
