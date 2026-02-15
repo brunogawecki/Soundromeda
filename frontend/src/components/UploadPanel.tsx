@@ -964,14 +964,16 @@ function UploadDropdown({
                 isError={uploadPanelMessageType === 'error'}
               />
             )}
-            <UploadedSoundsList
-              uploadedFiles={uploadedFiles}
-              selectionMode={selectionMode}
-              selectedIds={selectedIds}
-              onToggleSelected={toggleSelected}
-              onPlay={onPlay}
-              onHighlight={onHighlight}
-            />
+            <div className="settings-uploaded-list-scroll" aria-label="Uploaded sounds list">
+              <UploadedSoundsList
+                uploadedFiles={uploadedFiles}
+                selectionMode={selectionMode}
+                selectedIds={selectedIds}
+                onToggleSelected={toggleSelected}
+                onPlay={onPlay}
+                onHighlight={onHighlight}
+              />
+            </div>
             <DeleteSection
               panelMessage={panelMessage}
               setPanelMessage={setPanelMessage}
