@@ -305,7 +305,7 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     setConfirmRecalculate(null);
     setRecalculateLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/sounds/recalculate-mapping`, {
+      const response = await fetch(`${API_BASE}/api/sounds/recalculate-mapping/all-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -331,10 +331,10 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     setConfirmRecalculate(null);
     setRecalculateLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/sounds/recalculate-mapping`, {
+      const response = await fetch(`${API_BASE}/api/sounds/recalculate-mapping/all`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ include_builtin: true }),
+        body: JSON.stringify({}),
       });
       const data = response.ok ? await response.json().catch(() => ({})) : {};
       if (!response.ok) {
@@ -359,7 +359,7 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     setRecalculateLoading(true);
     const ids = [...selectedIds];
     try {
-      const response = await fetch(`${API_BASE}/api/sounds/recalculate-mapping`, {
+      const response = await fetch(`${API_BASE}/api/sounds/recalculate-mapping/selected`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),

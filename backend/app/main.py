@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import Settings
 from app.database import init_db
-from app.routers import sounds, upload
+from app.routers import sound_routes, upload
 
 settings = Settings()
 
@@ -38,7 +38,7 @@ static_path = Path(__file__).resolve().parent.parent / settings.static_dir
 static_path.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
-app.include_router(sounds.router)
+app.include_router(sound_routes.router)
 app.include_router(upload.router)
 
 
