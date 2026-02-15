@@ -55,7 +55,7 @@ async function fetchHiddenBuiltinIds(): Promise<string[]> {
 
 export type ConfirmAction = null | 'delete-all-builtin' | 'delete-all-user' | 'delete-selected';
 
-export type ConfirmRecalculateAction = null | 'recalculate-all' | 'recalculate-selected';
+export type ConfirmRecalculateAction = null | 'recalculate-all' | 'recalculate-all-with-builtin' | 'recalculate-selected';
 
 interface DismissibleMessageProps {
   message: string;
@@ -326,6 +326,32 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     }
   };
 
+  const recalculateAllWithBuiltin = async () => {
+    setDeleteError(null);
+    setConfirmRecalculate(null);
+    setRecalculateLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/sounds/recalculate-mapping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ include_builtin: true }),
+      });
+      const data = response.ok ? await response.json().catch(() => ({})) : {};
+      if (!response.ok) {
+        const detail = (data as { detail?: string }).detail ?? 'Failed to recalculate mapping';
+        throw new Error(detail);
+      }
+      const updated = (data as { updated?: number }).updated ?? 0;
+      refreshGalaxy();
+      fetchUserUploadedSounds().then(setUploadedFiles).catch(() => {});
+      setPanelMessage(`Recalculated mapping for ${updated} sound(s) (built-in + user)`);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Failed to recalculate mapping');
+    } finally {
+      setRecalculateLoading(false);
+    }
+  };
+
   const recalculateSelected = async () => {
     if (selectedIds.size === 0) return;
     setDeleteError(null);
@@ -394,6 +420,7 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     setConfirmRecalculate,
     recalculateLoading,
     recalculateAllUser,
+    recalculateAllWithBuiltin,
     recalculateSelected,
   };
 }
@@ -464,6 +491,8 @@ function ConfirmRecalculateMappingDialog({ confirmRecalculate, selectedIds, onCo
   const getMessage = () => {
     if (confirmRecalculate === 'recalculate-all')
       return 'Recalculate mapping for all your uploaded sounds? Their positions will change.';
+    if (confirmRecalculate === 'recalculate-all-with-builtin')
+      return 'Recalculate mapping for all sounds (built-in + user)? One unified layout will be created and positions will change.';
     if (confirmRecalculate === 'recalculate-selected')
       return `Recalculate mapping for ${selectedIds.size} sound(s)?`;
     return '';
@@ -791,6 +820,16 @@ function RecalculateSection({
           <RefreshCw size={14} />
           <span>Recalculate all user</span>
         </button>
+        <button
+          type="button"
+          className="settings-action-btn settings-action-btn--restore"
+          onClick={() => setConfirmRecalculate('recalculate-all-with-builtin')}
+          disabled={disabled}
+          title="Recompute UMAP positions for built-in and user sounds together (one mapping)"
+        >
+          <RefreshCw size={14} />
+          <span>Recalculate all (built-in + user)</span>
+        </button>
         {selectionMode ? (
           <div className="settings-delete-buttons-row">
             <button
@@ -876,6 +915,7 @@ function UploadDropdown({
   setConfirmRecalculate,
   recalculateLoading,
   recalculateAllUser,
+  recalculateAllWithBuiltin,
   recalculateSelected,
 }: {
   uploadStatus: UploadStatus;
@@ -911,6 +951,7 @@ function UploadDropdown({
   setConfirmRecalculate: (action: ConfirmRecalculateAction) => void;
   recalculateLoading: boolean;
   recalculateAllUser: () => Promise<void>;
+  recalculateAllWithBuiltin: () => Promise<void>;
   recalculateSelected: () => Promise<void>;
 }) {
   const handleConfirmDelete = () => {
@@ -921,6 +962,7 @@ function UploadDropdown({
 
   const handleConfirmRecalculate = () => {
     if (confirmRecalculate === 'recalculate-all') recalculateAllUser();
+    else if (confirmRecalculate === 'recalculate-all-with-builtin') recalculateAllWithBuiltin();
     else if (confirmRecalculate === 'recalculate-selected') recalculateSelected();
   };
 
@@ -964,7 +1006,10 @@ function UploadDropdown({
                 isError={uploadPanelMessageType === 'error'}
               />
             )}
-            <div className="settings-uploaded-list-scroll" aria-label="Uploaded sounds list">
+            <div
+              className={`settings-uploaded-list-scroll${uploadedFiles.length > 0 ? ' settings-uploaded-list-scroll--has-items' : ''}`}
+              aria-label="Uploaded sounds list"
+            >
               <UploadedSoundsList
                 uploadedFiles={uploadedFiles}
                 selectionMode={selectionMode}
@@ -1065,6 +1110,7 @@ export function UploadPanel(props: UploadPanelProps) {
             setConfirmRecalculate={logic.setConfirmRecalculate}
             recalculateLoading={logic.recalculateLoading}
             recalculateAllUser={logic.recalculateAllUser}
+            recalculateAllWithBuiltin={logic.recalculateAllWithBuiltin}
             recalculateSelected={logic.recalculateSelected}
           />
         )}
