@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Play, FileUp, FolderUp, Trash2, ListChecks, X, RotateCcw } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Upload, Play, FileUp, FolderUp, Trash2, ListChecks, X, RotateCcw, RefreshCw, Loader2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { playAudioUrl } from '../useTone';
 const API_BASE = '';
@@ -54,6 +55,8 @@ async function fetchHiddenBuiltinIds(): Promise<string[]> {
 
 export type ConfirmAction = null | 'delete-all-builtin' | 'delete-all-user' | 'delete-selected';
 
+export type ConfirmRecalculateAction = null | 'recalculate-all' | 'recalculate-all-with-builtin' | 'recalculate-selected';
+
 interface DismissibleMessageProps {
   message: string;
   onDismiss: () => void;
@@ -65,6 +68,14 @@ interface ConfirmDeleteDialogProps {
   selectedIds: Set<number>;
   onConfirm: () => void;
   onCancel: () => void;
+}
+
+interface ConfirmRecalculateMappingDialogProps {
+  confirmRecalculate: ConfirmRecalculateAction;
+  selectedIds: Set<number>;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading: boolean;
 }
 
 interface UploadButtonsRowProps {
@@ -99,6 +110,8 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
+  const [confirmRecalculate, setConfirmRecalculate] = useState<ConfirmRecalculateAction>(null);
+  const [recalculateLoading, setRecalculateLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [panelMessage, setPanelMessage] = useState<string | null>(null);
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
@@ -287,6 +300,88 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     }
   };
 
+  const recalculateAllUser = async () => {
+    setDeleteError(null);
+    setConfirmRecalculate(null);
+    setRecalculateLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/sounds/recalculate-mapping/all-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = response.ok ? await response.json().catch(() => ({})) : {};
+      if (!response.ok) {
+        const detail = (data as { detail?: string }).detail ?? 'Failed to recalculate mapping';
+        throw new Error(detail);
+      }
+      const updated = (data as { updated?: number }).updated ?? 0;
+      refreshGalaxy();
+      fetchUserUploadedSounds().then(setUploadedFiles).catch(() => {});
+      setPanelMessage(`Recalculated mapping for ${updated} sound(s)`);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Failed to recalculate mapping');
+    } finally {
+      setRecalculateLoading(false);
+    }
+  };
+
+  const recalculateAllWithBuiltin = async () => {
+    setDeleteError(null);
+    setConfirmRecalculate(null);
+    setRecalculateLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/sounds/recalculate-mapping/all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = response.ok ? await response.json().catch(() => ({})) : {};
+      if (!response.ok) {
+        const detail = (data as { detail?: string }).detail ?? 'Failed to recalculate mapping';
+        throw new Error(detail);
+      }
+      const updated = (data as { updated?: number }).updated ?? 0;
+      refreshGalaxy();
+      fetchUserUploadedSounds().then(setUploadedFiles).catch(() => {});
+      setPanelMessage(`Recalculated mapping for ${updated} sound(s) (built-in + user)`);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Failed to recalculate mapping');
+    } finally {
+      setRecalculateLoading(false);
+    }
+  };
+
+  const recalculateSelected = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleteError(null);
+    setConfirmRecalculate(null);
+    setRecalculateLoading(true);
+    const ids = [...selectedIds];
+    try {
+      const response = await fetch(`${API_BASE}/api/sounds/recalculate-mapping/selected`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      const data = response.ok ? await response.json().catch(() => ({})) : {};
+      if (!response.ok) {
+        const detail = (data as { detail?: string }).detail ?? 'Failed to recalculate mapping';
+        throw new Error(detail);
+      }
+      const updated = (data as { updated?: number }).updated ?? 0;
+      setSelectionMode(false);
+      setSelectedIds(new Set());
+      refreshGalaxy();
+      fetchUserUploadedSounds().then(setUploadedFiles).catch(() => {});
+      setPanelMessage(`Recalculated mapping for ${updated} sound(s)`);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Failed to recalculate mapping');
+    } finally {
+      setRecalculateLoading(false);
+    }
+  };
+
   return {
     fileInputRef,
     folderInputRef,
@@ -321,6 +416,12 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     confirmRestore,
     setConfirmRestore,
     restoreConfirmRef,
+    confirmRecalculate,
+    setConfirmRecalculate,
+    recalculateLoading,
+    recalculateAllUser,
+    recalculateAllWithBuiltin,
+    recalculateSelected,
   };
 }
 
@@ -367,6 +468,49 @@ function ConfirmDeleteDialog({ confirmAction, selectedIds, onConfirm, onCancel }
           Yes
         </button>
         <button type="button" className="settings-action-btn" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RecalculateMappingOverlay() {
+  return (
+    <div className="recalculate-overlay" role="status" aria-live="polite" aria-label="Recalculating mapping">
+      <div className="recalculate-overlay-backdrop" aria-hidden />
+      <div className="recalculate-overlay-card">
+        <Loader2 size={40} className="recalculate-overlay-spinner" aria-hidden />
+        <span className="recalculate-overlay-text">Recalculating mapping…</span>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmRecalculateMappingDialog({ confirmRecalculate, selectedIds, onConfirm, onCancel, loading }: ConfirmRecalculateMappingDialogProps) {
+  const getMessage = () => {
+    if (confirmRecalculate === 'recalculate-all')
+      return 'Recalculate mapping for all your uploaded sounds? Their positions will change.';
+    if (confirmRecalculate === 'recalculate-all-with-builtin')
+      return 'Recalculate mapping for all sounds (built-in + user)? One unified layout will be created and positions will change.';
+    if (confirmRecalculate === 'recalculate-selected')
+      return `Recalculate mapping for ${selectedIds.size} sound(s)?`;
+    return '';
+  };
+
+  return (
+    <div className="settings-delete-confirm">
+      <p className="settings-delete-confirm-text">{getMessage()}</p>
+      <div className="settings-action-row">
+        <button
+          type="button"
+          className="settings-action-btn settings-action-btn--restore"
+          onClick={onConfirm}
+          disabled={loading}
+        >
+          {loading ? 'Recalculating…' : 'Yes'}
+        </button>
+        <button type="button" className="settings-action-btn" onClick={onCancel} disabled={loading}>
           Cancel
         </button>
       </div>
@@ -534,6 +678,8 @@ function DeleteSection({
   setDeleteError,
   restoreConfirmRef,
   restoreAllBuiltin,
+  setConfirmRecalculate,
+  recalculateLoading,
 }: {
   panelMessage: string | null;
   setPanelMessage: (message: string | null) => void;
@@ -552,6 +698,8 @@ function DeleteSection({
   setDeleteError: (error: string | null) => void;
   restoreConfirmRef: React.RefObject<HTMLDivElement | null>;
   restoreAllBuiltin: () => Promise<void>;
+  setConfirmRecalculate: (action: ConfirmRecalculateAction) => void;
+  recalculateLoading: boolean;
 }) {
   const isUploading = uploadStatus === 'uploading';
 
@@ -625,6 +773,88 @@ function DeleteSection({
         uploadStatus={uploadStatus}
       />
       {deleteError && <p className="settings-upload-error">{deleteError}</p>}
+      <RecalculateSection
+        uploadStatus={uploadStatus}
+        uploadedFiles={uploadedFiles}
+        selectionMode={selectionMode}
+        setConfirmRecalculate={setConfirmRecalculate}
+        enterSelectionMode={enterSelectionMode}
+        recalculateLoading={recalculateLoading}
+        selectedIds={selectedIds}
+      />
+    </div>
+  );
+}
+
+function RecalculateSection({
+  uploadStatus,
+  uploadedFiles,
+  selectionMode,
+  setConfirmRecalculate,
+  enterSelectionMode,
+  recalculateLoading,
+  selectedIds,
+}: {
+  uploadStatus: UploadStatus;
+  uploadedFiles: UploadedFile[];
+  selectionMode: boolean;
+  setConfirmRecalculate: (action: ConfirmRecalculateAction) => void;
+  enterSelectionMode: () => void;
+  recalculateLoading: boolean;
+  selectedIds: Set<number>;
+}) {
+  const isUploading = uploadStatus === 'uploading';
+  const disabled = isUploading || recalculateLoading;
+
+  return (
+    <div className="settings-recalculate-section">
+      <span className="settings-uploaded-list-title">Recalculate mapping</span>
+      <div className="settings-delete-buttons">
+        <button
+          type="button"
+          className="settings-action-btn settings-action-btn--restore"
+          onClick={() => setConfirmRecalculate('recalculate-all')}
+          disabled={disabled || uploadedFiles.length === 0}
+          title="Recompute UMAP positions for all uploaded sounds"
+        >
+          <RefreshCw size={14} />
+          <span>Recalculate all user</span>
+        </button>
+        <button
+          type="button"
+          className="settings-action-btn settings-action-btn--restore"
+          onClick={() => setConfirmRecalculate('recalculate-all-with-builtin')}
+          disabled={disabled}
+          title="Recompute UMAP positions for built-in and user sounds together (one mapping)"
+        >
+          <RefreshCw size={14} />
+          <span>Recalculate all (built-in + user)</span>
+        </button>
+        {selectionMode ? (
+          <div className="settings-delete-buttons-row">
+            <button
+              type="button"
+              className="settings-action-btn settings-action-btn--restore"
+              onClick={() => setConfirmRecalculate('recalculate-selected')}
+              disabled={selectedIds.size === 0 || recalculateLoading}
+            >
+              <RefreshCw size={14} />
+              <span>Recalculate ({selectedIds.size})</span>
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="settings-action-btn settings-action-btn--restore"
+            onClick={enterSelectionMode}
+            disabled={disabled || uploadedFiles.length === 0}
+            title="Select uploaded sounds to recalculate mapping"
+          >
+            <ListChecks size={14} />
+            <span>Select to recalculate</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -681,6 +911,12 @@ function UploadDropdown({
   confirmRestore,
   setConfirmRestore,
   restoreConfirmRef,
+  confirmRecalculate,
+  setConfirmRecalculate,
+  recalculateLoading,
+  recalculateAllUser,
+  recalculateAllWithBuiltin,
+  recalculateSelected,
 }: {
   uploadStatus: UploadStatus;
   uploadedFiles: UploadedFile[];
@@ -711,11 +947,23 @@ function UploadDropdown({
   confirmRestore: boolean;
   setConfirmRestore: (value: boolean) => void;
   restoreConfirmRef: React.RefObject<HTMLDivElement | null>;
+  confirmRecalculate: ConfirmRecalculateAction;
+  setConfirmRecalculate: (action: ConfirmRecalculateAction) => void;
+  recalculateLoading: boolean;
+  recalculateAllUser: () => Promise<void>;
+  recalculateAllWithBuiltin: () => Promise<void>;
+  recalculateSelected: () => Promise<void>;
 }) {
   const handleConfirmDelete = () => {
     if (confirmAction === 'delete-all-builtin') deleteAllBuiltin();
     else if (confirmAction === 'delete-all-user') deleteAllUser();
     else if (confirmAction === 'delete-selected') deleteSelected();
+  };
+
+  const handleConfirmRecalculate = () => {
+    if (confirmRecalculate === 'recalculate-all') recalculateAllUser();
+    else if (confirmRecalculate === 'recalculate-all-with-builtin') recalculateAllWithBuiltin();
+    else if (confirmRecalculate === 'recalculate-selected') recalculateSelected();
   };
 
   return (
@@ -732,6 +980,17 @@ function UploadDropdown({
               setDeleteError(null);
             }}
           />
+        ) : confirmRecalculate !== null ? (
+          <ConfirmRecalculateMappingDialog
+            confirmRecalculate={confirmRecalculate}
+            selectedIds={selectedIds}
+            onConfirm={handleConfirmRecalculate}
+            onCancel={() => {
+              setConfirmRecalculate(null);
+              setDeleteError(null);
+            }}
+            loading={recalculateLoading}
+          />
         ) : (
           <>
             <UploadButtonsRow
@@ -747,14 +1006,19 @@ function UploadDropdown({
                 isError={uploadPanelMessageType === 'error'}
               />
             )}
-            <UploadedSoundsList
-              uploadedFiles={uploadedFiles}
-              selectionMode={selectionMode}
-              selectedIds={selectedIds}
-              onToggleSelected={toggleSelected}
-              onPlay={onPlay}
-              onHighlight={onHighlight}
-            />
+            <div
+              className={`settings-uploaded-list-scroll${uploadedFiles.length > 0 ? ' settings-uploaded-list-scroll--has-items' : ''}`}
+              aria-label="Uploaded sounds list"
+            >
+              <UploadedSoundsList
+                uploadedFiles={uploadedFiles}
+                selectionMode={selectionMode}
+                selectedIds={selectedIds}
+                onToggleSelected={toggleSelected}
+                onPlay={onPlay}
+                onHighlight={onHighlight}
+              />
+            </div>
             <DeleteSection
               panelMessage={panelMessage}
               setPanelMessage={setPanelMessage}
@@ -773,6 +1037,8 @@ function UploadDropdown({
               setDeleteError={setDeleteError}
               restoreConfirmRef={restoreConfirmRef}
               restoreAllBuiltin={restoreAllBuiltin}
+              setConfirmRecalculate={setConfirmRecalculate}
+              recalculateLoading={recalculateLoading}
             />
           </>
         )}
@@ -786,6 +1052,7 @@ export function UploadPanel(props: UploadPanelProps) {
 
   return (
     <>
+      {logic.recalculateLoading && createPortal(<RecalculateMappingOverlay />, document.body)}
       <HiddenFileInputs
         fileInputRef={logic.fileInputRef}
         folderInputRef={logic.folderInputRef}
@@ -839,6 +1106,12 @@ export function UploadPanel(props: UploadPanelProps) {
             confirmRestore={logic.confirmRestore}
             setConfirmRestore={logic.setConfirmRestore}
             restoreConfirmRef={logic.restoreConfirmRef}
+            confirmRecalculate={logic.confirmRecalculate}
+            setConfirmRecalculate={logic.setConfirmRecalculate}
+            recalculateLoading={logic.recalculateLoading}
+            recalculateAllUser={logic.recalculateAllUser}
+            recalculateAllWithBuiltin={logic.recalculateAllWithBuiltin}
+            recalculateSelected={logic.recalculateSelected}
           />
         )}
       </div>
