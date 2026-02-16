@@ -12,22 +12,28 @@ Run from backend directory:
   --copy: copy DIRECTORY into static/audio/<basename> first, then build (so the app can serve files).
 """
 import argparse
+import logging
 import shutil
 import sys
 from pathlib import Path
+import librosa
 
 # Add backend root to path so "from app..." works when run as script
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
+
 from app.config import (
     AUDIO_DIR,
     AUDIO_EXTENSIONS_SET,
     BUILTIN_JSON_PATH,
     DEFAULT_AUDIO_SOURCE_PATH,
+    MAX_SAMPLE_DURATION_SEC,
     UMAP_MODEL_PATH,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def collect_audio_files(root: Path) -> list[Path]:
@@ -39,7 +45,30 @@ def collect_audio_files(root: Path) -> list[Path]:
     return sorted(audio_files)
 
 
+def filter_by_max_duration(audio_files: list[Path], max_duration_sec: float) -> list[str]:
+    """Keep only files with duration <= max_duration_sec; log skipped count."""
+    paths: list[str] = []
+    skipped = 0
+    for path in audio_files:
+        try:
+            duration_sec = librosa.get_duration(path=path)
+            if duration_sec <= max_duration_sec:
+                paths.append(str(path))
+            else:
+                skipped += 1
+        except Exception as e:
+            logger.warning(f"Could not get duration for {path}: {e}")
+            skipped += 1
+    if skipped:
+        logger.info(f"{skipped} file(s) exceeding {max_duration_sec:.1f}s duration skipped")
+    return paths
+
+
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s: %(message)s",
+    )
     parser = argparse.ArgumentParser(
         description="Build builtin.json mapping from audio files in a directory.",
     )
@@ -75,7 +104,12 @@ def main() -> None:
         print(f"No audio files in {source_dir}. Add .wav, .mp3, etc. and re-run.")
         return
 
-    paths = [str(p) for p in audio_files]
+    logger.info(f"Checking for files exceeding {MAX_SAMPLE_DURATION_SEC}s duration...")
+    paths = filter_by_max_duration(audio_files, MAX_SAMPLE_DURATION_SEC)
+    if not paths:
+        print(f"No audio files within {MAX_SAMPLE_DURATION_SEC}s in {source_dir}.")
+        return
+
     print(f"Precomputing layout for {len(paths)} file(s) from {source_dir}...")
 
     # Paths in builtin.json: relative to source dir; prefix only when under static/audio

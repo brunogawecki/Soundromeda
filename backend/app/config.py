@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # CORS: comma-separated origins, e.g. "http://localhost:5173,http://127.0.0.1:5173"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    # Max duration (seconds) for a single audio sample (upload + build_builtin); longer files are rejected/skipped
+    max_sample_duration_sec: float = 5.0
+
 
 settings = Settings()
 
@@ -52,4 +55,5 @@ UMAP_MODEL_PATH: Path = META_DIR / "umap_model.joblib"
 AUDIO_EXTENSIONS_SET: frozenset[str] = frozenset(
     ext.strip() for ext in settings.audio_extensions.split(",") if ext.strip()
 )
+MAX_SAMPLE_DURATION_SEC: float = settings.max_sample_duration_sec
 
