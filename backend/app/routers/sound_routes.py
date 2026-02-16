@@ -9,7 +9,13 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings
+from app.config import (
+    BUILTIN_JSON_PATH,
+    HIDDEN_BUILTIN_JSON_PATH,
+    META_DIR,
+    STATIC_PATH,
+    UMAP_MODEL_PATH,
+)
 from app.database import get_db
 from app.models import Sound
 from app.schemas import Point, PointsResponse
@@ -17,13 +23,6 @@ from app.soundspace import SoundSpaceError, fit_umap_get_coords
 from app.soundspace.embedding import SoundSpaceEmbedder
 
 router = APIRouter(prefix="/api", tags=["sounds"])
-_settings = Settings()
-
-# Path to static meta (built-in library). Relative to backend root.
-_BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
-_STATIC_META_PATH = _BACKEND_ROOT / _settings.static_dir / "meta" / "builtin.json"
-_HIDDEN_BUILTIN_PATH = _BACKEND_ROOT / _settings.static_dir / "meta" / "hidden_builtin.json"
-_UMAP_MODEL_PATH = _BACKEND_ROOT / _settings.static_dir / "meta" / "umap_model.joblib"
 
 
 class IdsBody(BaseModel):
@@ -40,7 +39,7 @@ class BulkIdsBody(BaseModel):
 
 def _static_file_path(relative_path: str) -> Path:
     """Resolve static file path from relative audio_path (e.g. uploads/foo.wav)."""
-    return _BACKEND_ROOT / _settings.static_dir / relative_path.lstrip("/")
+    return STATIC_PATH / relative_path.lstrip("/")
 
 
 async def _delete_user_sound_by_id(sound_id: int, db: AsyncSession) -> bool:
@@ -74,19 +73,19 @@ def _base_url(request: Request) -> str:
 
 def _load_builtin_json() -> list[dict]:
     """Load and parse builtin.json → list of raw dicts. Single source for all builtin data access."""
-    if not _STATIC_META_PATH.exists():
+    if not BUILTIN_JSON_PATH.exists():
         return []
-    data = json.loads(_STATIC_META_PATH.read_text(encoding="utf-8"))
+    data = json.loads(BUILTIN_JSON_PATH.read_text(encoding="utf-8"))
     items = data.get("points", data) if isinstance(data, dict) else data
     return list(items) if isinstance(items, list) else []
 
 
 def _load_hidden_builtin_ids() -> set[str]:
     """IDs of built-in sounds the user has chosen to hide."""
-    if not _HIDDEN_BUILTIN_PATH.exists():
+    if not HIDDEN_BUILTIN_JSON_PATH.exists():
         return set()
     try:
-        data = json.loads(_HIDDEN_BUILTIN_PATH.read_text(encoding="utf-8"))
+        data = json.loads(HIDDEN_BUILTIN_JSON_PATH.read_text(encoding="utf-8"))
         ids = data.get("hidden_ids", [])
         return set(ids) if isinstance(ids, list) else set()
     except (json.JSONDecodeError, KeyError, OSError):
@@ -95,8 +94,8 @@ def _load_hidden_builtin_ids() -> set[str]:
 
 def _save_hidden_builtin_ids(hidden_ids: list[str]) -> None:
     """Persist the hidden built-in list."""
-    _HIDDEN_BUILTIN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _HIDDEN_BUILTIN_PATH.write_text(
+    META_DIR.mkdir(parents=True, exist_ok=True)
+    HIDDEN_BUILTIN_JSON_PATH.write_text(
         json.dumps({"hidden_ids": hidden_ids}, indent=2), encoding="utf-8"
     )
 
@@ -215,7 +214,7 @@ async def _run_umap_and_apply(
             status_code=400,
             detail="Feature extraction failed for all selected files",
         )
-    save_path = _UMAP_MODEL_PATH if save_model else None
+    save_path = UMAP_MODEL_PATH if save_model else None
     try:
         coords_list = await asyncio.to_thread(
             fit_umap_get_coords, successful_paths, save_model_path=save_path, n_components=3
@@ -246,8 +245,8 @@ async def _run_umap_and_apply(
                 point["coords_2d"] = c[:2]
                 point["coords_3d"] = c[:3] if len(c) >= 3 else [c[0], c[1], 0.0]
                 updated += 1
-        _STATIC_META_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _STATIC_META_PATH.write_text(
+        META_DIR.mkdir(parents=True, exist_ok=True)
+        BUILTIN_JSON_PATH.write_text(
             json.dumps({"points": builtin_points_raw}, indent=2),
             encoding="utf-8",
         )

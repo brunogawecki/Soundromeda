@@ -1,4 +1,6 @@
 """Application configuration loaded from environment."""
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,7 +23,33 @@ class Settings(BaseSettings):
 
     # Paths (relative to backend root or absolute)
     static_dir: str = "static"
+    # Backend root; leave empty to auto-detect from this file's location
+    backend_root: str = ""
+    # Default audio source folder name under static/audio (e.g. for build_builtin.py)
+    default_audio_source: str = "Neptunes Drumkit"
+    # Comma-separated audio file extensions, e.g. ".wav,.mp3,.ogg"
+    audio_extensions: str = ".wav,.WAV,.mp3,.ogg,.flac,.m4a,.aac"
 
     # CORS: comma-separated origins, e.g. "http://localhost:5173,http://127.0.0.1:5173"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+
+settings = Settings()
+
+# --- Path constants (derived from settings) ---
+_BACKEND_ROOT_PATH: Path = (
+    Path(settings.backend_root).resolve()
+    if settings.backend_root
+    else Path(__file__).resolve().parent.parent
+)
+STATIC_PATH: Path = _BACKEND_ROOT_PATH / settings.static_dir
+AUDIO_DIR: Path = STATIC_PATH / "audio"
+META_DIR: Path = STATIC_PATH / "meta"
+DEFAULT_AUDIO_SOURCE_PATH: Path = AUDIO_DIR / settings.default_audio_source
+BUILTIN_JSON_PATH: Path = META_DIR / "builtin.json"
+HIDDEN_BUILTIN_JSON_PATH: Path = META_DIR / "hidden_builtin.json"
+UMAP_MODEL_PATH: Path = META_DIR / "umap_model.joblib"
+AUDIO_EXTENSIONS_SET: frozenset[str] = frozenset(
+    ext.strip() for ext in settings.audio_extensions.split(",") if ext.strip()
+)
 
