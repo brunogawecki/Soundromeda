@@ -1,17 +1,20 @@
 """Upload API: POST /api/upload — accept file, save, run soundspace embedding, persist coords."""
+import logging
 import uuid
 from pathlib import Path
 
+import librosa
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings
+from app.config import Settings, MAX_SAMPLE_DURATION_SEC
 from app.database import get_db
 from app.models import Sound
 from app.soundspace import SoundSpaceError, embed_single_sample
 from app.schemas import Point
 
 router = APIRouter(prefix="/api", tags=["upload"])
+logger = logging.getLogger(__name__)
 _settings = Settings()
 
 # Allowed audio extensions
@@ -46,11 +49,7 @@ def _safe_filename(original_filename: str) -> str:
 
 
 @router.post("/upload", response_model=Point)
-async def upload_sound(
-    request: Request,
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-) -> Point:
+async def upload_sound(request: Request, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)) -> Point:
     """POST /api/upload — accept audio file, save to uploads/, run embedding+layout, persist coords, return point."""
     # Validate extension
     ext = Path(file.filename or "").suffix.lower()
@@ -62,15 +61,27 @@ async def upload_sound(
 
     uploads_dir = await _ensure_uploads_dir()
     safe_name = _safe_filename(file.filename or "audio.wav")
-    dest_path = uploads_dir / safe_name
+    destination_path = uploads_dir / safe_name
 
     # Save file
     content = await file.read()
-    dest_path.write_bytes(content)
+    destination_path.write_bytes(content)
+
+    # Reject if duration exceeds limit (from config / .env)
+    try:
+        duration_sec = librosa.get_duration(path=destination_path)
+    except Exception as e:
+        logger.warning(f"Could not read audio duration for {file.filename}: {e}", exc_info=True)
+        destination_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Could not read audio duration. File may be corrupt or unsupported.")
+    if duration_sec > MAX_SAMPLE_DURATION_SEC:
+        logger.warning(f"Upload rejected: {file.filename} exceeds max duration ({duration_sec:.1f}s > {MAX_SAMPLE_DURATION_SEC:.0f}s)")
+        destination_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=f"Audio exceeds maximum duration of {MAX_SAMPLE_DURATION_SEC:.0f}s (got {duration_sec:.1f}s).")
 
     # Run soundspace embedding (uses saved UMAP model so new sound maps into existing galaxy)
     try:
-        coords = embed_single_sample(dest_path)
+        coords = embed_single_sample(destination_path)
     except SoundSpaceError as e:
         raise HTTPException(status_code=503, detail=str(e))
 

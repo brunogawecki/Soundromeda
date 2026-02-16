@@ -1,8 +1,16 @@
 """FastAPI app entry. Galaxy API and static assets mounted."""
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+
+# Ensure app loggers (e.g. upload, sound_routes) emit to the process stdout when run under uvicorn
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s: %(name)s: %(message)s",
+    force=True,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
