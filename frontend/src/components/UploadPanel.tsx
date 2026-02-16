@@ -181,18 +181,35 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
         const formData = new FormData();
         formData.append('file', file);
         const response = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData });
-        if (!response.ok) throw new Error('Failed');
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          const message = typeof body?.detail === 'string' ? body.detail : 'Upload failed';
+          throw new Error(message);
+        }
       })
     );
     const successCount = results.filter((result) => result.status === 'fulfilled').length;
     const failCount = results.filter((result) => result.status === 'rejected').length;
+    const rejectionMessages = results
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      .map((r) => r.reason?.message ?? '');
+    const durationExceededCount = rejectionMessages.filter((msg) =>
+      /maximum duration|exceeds.*duration/i.test(msg)
+    ).length;
 
     if (successCount > 0) {
       setUploadStatus('idle');
       setUploadMessage('');
-      const msg = failCount > 0
-        ? `${successCount} file(s) uploaded, ${failCount} failed`
-        : `${successCount} file(s) uploaded successfully`;
+      let msg: string;
+      if (failCount === 0) {
+        msg = `${successCount} file(s) uploaded successfully`;
+      } else if (durationExceededCount === failCount) {
+        msg = `${successCount} file(s) uploaded, ${failCount} exceeded max duration`;
+      } else if (durationExceededCount > 0) {
+        msg = `${successCount} file(s) uploaded, ${failCount} failed (${durationExceededCount} exceeded max duration)`;
+      } else {
+        msg = `${successCount} file(s) uploaded, ${failCount} failed`;
+      }
       setUploadPanelMessage(msg);
       setUploadPanelMessageType(failCount > 0 ? 'error' : 'success');
       refreshGalaxy();
@@ -200,7 +217,9 @@ function useUploadPanelLogic({ setUploadStatus, setUploadMessage }: UploadPanelP
     } else {
       setUploadStatus('error');
       setUploadMessage('');
-      setUploadPanelMessage(failCount > 0 ? 'Upload failed' : 'No audio files found');
+      const firstRejection = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+      const errorMessage = firstRejection?.reason?.message ?? 'Upload failed';
+      setUploadPanelMessage(failCount > 0 ? errorMessage : 'No audio files found');
       setUploadPanelMessageType('error');
     }
   };
