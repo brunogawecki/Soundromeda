@@ -22,7 +22,7 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 STATIC = BACKEND_ROOT / "static"
 AUDIO_DIR = STATIC / "audio"
-DEFAULT_AUDIO_SOURCE = AUDIO_DIR / "UK_Garage_Samples"
+DEFAULT_AUDIO_SOURCE = AUDIO_DIR / "Neptunes Drumkit"
 META_DIR = STATIC / "meta"
 BUILTIN_JSON = META_DIR / "builtin.json"
 UMAP_MODEL = META_DIR / "umap_model.joblib"
