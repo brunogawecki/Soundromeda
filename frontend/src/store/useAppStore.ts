@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 export type HoverTooltipMode = 'fixed' | 'follow';
 export type PlayMode = 'hover' | 'click';
+export type ViewMode = '2d' | '3d';
 
 interface AppState {
   selectedId: string | null;
@@ -12,6 +13,7 @@ interface AppState {
   pointerY: number | null;
   hoverTooltipMode: HoverTooltipMode;
   playMode: PlayMode;
+  viewMode: ViewMode;
   volume: number;
   galaxyVersion: number;
   /** audioUrl of the sound hovered in the uploaded-files list; Scene highlights that point. */
@@ -25,6 +27,7 @@ interface AppState {
   setPointerPosition: (x: number | null, y: number | null) => void;
   setHoverTooltipMode: (mode: HoverTooltipMode) => void;
   setPlayMode: (mode: PlayMode) => void;
+  setViewMode: (mode: ViewMode) => void;
   setVolume: (volume: number) => void;
   setHighlightedListAudioUrl: (url: string | null) => void;
   setOrbitTarget: (x: number, y: number, z: number) => void;
@@ -41,6 +44,7 @@ export const useAppStore = create<AppState>((set) => ({
   pointerY: null,
   hoverTooltipMode: 'follow',
   playMode: 'hover',
+  viewMode: '3d',
   volume: 1.0,
   galaxyVersion: 0,
   highlightedListAudioUrl: null,
@@ -53,6 +57,7 @@ export const useAppStore = create<AppState>((set) => ({
   setPointerPosition: (x, y) => set({ pointerX: x, pointerY: y }),
   setHoverTooltipMode: (mode) => set({ hoverTooltipMode: mode }),
   setPlayMode: (mode) => set({ playMode: mode }),
+  setViewMode: (mode) => set({ viewMode: mode }),
   setVolume: (volume) => set({ volume }),
   setHighlightedListAudioUrl: (url) => set({ highlightedListAudioUrl: url }),
   setOrbitTarget: (x, y, z) => set({ orbitTarget: [x, y, z] }),

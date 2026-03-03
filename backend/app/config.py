@@ -52,6 +52,8 @@ DEFAULT_AUDIO_SOURCE_PATH: Path = AUDIO_DIR / settings.default_audio_source
 BUILTIN_JSON_PATH: Path = META_DIR / "builtin.json"
 HIDDEN_BUILTIN_JSON_PATH: Path = META_DIR / "hidden_builtin.json"
 UMAP_MODEL_PATH: Path = META_DIR / "umap_model.joblib"
+UMAP_MODEL_2D_PATH: Path = META_DIR / "umap_model_2d.joblib"
+UMAP_MODEL_3D_PATH: Path = META_DIR / "umap_model_3d.joblib"
 AUDIO_EXTENSIONS_SET: frozenset[str] = frozenset(
     ext.strip() for ext in settings.audio_extensions.split(",") if ext.strip()
 )

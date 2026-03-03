@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { RotateCcw, Settings } from 'lucide-react';
-import { useAppStore, type PlayMode } from '../store/useAppStore';
+import { useAppStore, type PlayMode, type ViewMode } from '../store/useAppStore';
 import { UploadPanel, type UploadStatus } from './UploadPanel';
 import { setMasterVolume } from '../useTone';
 
@@ -15,6 +15,8 @@ function useSettingsPanelLogic() {
   const setHoverTooltipMode = useAppStore((s) => s.setHoverTooltipMode);
   const playMode = useAppStore((s) => s.playMode);
   const setPlayMode = useAppStore((s) => s.setPlayMode);
+  const viewMode = useAppStore((s) => s.viewMode);
+  const setViewMode = useAppStore((s) => s.setViewMode);
   const volume = useAppStore((s) => s.volume);
   const setVolume = useAppStore((s) => s.setVolume);
 
@@ -41,6 +43,8 @@ function useSettingsPanelLogic() {
     setHoverTooltipMode,
     playMode,
     setPlayMode,
+    viewMode,
+    setViewMode,
     volume,
     setVolume,
   };
@@ -156,6 +160,36 @@ function HoverTooltipOptions({ hoverTooltipMode, setHoverTooltipMode }: { hoverT
   );
 }
 
+function ViewModeOptions({ viewMode, setViewMode }: { viewMode: ViewMode; setViewMode: (mode: ViewMode) => void }) {
+  return (
+    <div className="settings-group">
+      <span className="settings-label">View mode</span>
+      <div className="settings-options">
+        <label className="settings-option">
+          <input
+            type="radio"
+            name="viewMode"
+            value="3d"
+            checked={viewMode === '3d'}
+            onChange={() => setViewMode('3d')}
+          />
+          <span>3D galaxy</span>
+        </label>
+        <label className="settings-option">
+          <input
+            type="radio"
+            name="viewMode"
+            value="2d"
+            checked={viewMode === '2d'}
+            onChange={() => setViewMode('2d')}
+          />
+          <span>2D map</span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function ResetViewButton() {
   const setOrbitTarget = useAppStore((s) => s.setOrbitTarget);
   const setOrbitCenterPointId = useAppStore((s) => s.setOrbitCenterPointId);
@@ -216,6 +250,8 @@ function SettingsDropdown({
   uploadMessage,
   playMode,
   setPlayMode,
+  viewMode,
+  setViewMode,
   hoverTooltipMode,
   setHoverTooltipMode,
   volume,
@@ -225,6 +261,8 @@ function SettingsDropdown({
   uploadMessage: string;
   playMode: PlayMode;
   setPlayMode: (mode: PlayMode) => void;
+  viewMode: ViewMode;
+  setViewMode: (mode: ViewMode) => void;
   hoverTooltipMode: string;
   setHoverTooltipMode: (mode: 'follow' | 'fixed') => void;
   volume: number;
@@ -234,6 +272,7 @@ function SettingsDropdown({
     <div className="settings-dropdown" role="menu">
       <UploadStatusMessage uploadStatus={uploadStatus} uploadMessage={uploadMessage} />
       <VolumeControl volume={volume} setVolume={setVolume} />
+      <ViewModeOptions viewMode={viewMode} setViewMode={setViewMode} />
       <PlayModeOptions playMode={playMode} setPlayMode={setPlayMode} />
       <HoverTooltipOptions hoverTooltipMode={hoverTooltipMode} setHoverTooltipMode={setHoverTooltipMode} />
       <ResetViewButton />
@@ -260,6 +299,8 @@ export function SettingsPanel() {
           uploadMessage={logic.uploadMessage}
           playMode={logic.playMode}
           setPlayMode={logic.setPlayMode}
+          viewMode={logic.viewMode}
+          setViewMode={logic.setViewMode}
           hoverTooltipMode={logic.hoverTooltipMode}
           setHoverTooltipMode={logic.setHoverTooltipMode}
           volume={logic.volume}
