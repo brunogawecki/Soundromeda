@@ -14,7 +14,8 @@ from app.config import (
     HIDDEN_BUILTIN_JSON_PATH,
     META_DIR,
     STATIC_PATH,
-    UMAP_MODEL_PATH,
+    UMAP_MODEL_2D_PATH,
+    UMAP_MODEL_3D_PATH,
 )
 from app.database import get_db
 from app.models import Sound
@@ -208,16 +209,24 @@ async def _run_umap_and_apply(
     builtin_points_raw: list[dict] | None = None,
     db: AsyncSession,
 ) -> int:
-    """Fit UMAP on paths, update user Sound rows (and optionally builtin.json). Path order must be [builtin..., user...] when successful_builtin_ids is set; user_coords_offset is the start index for user coords."""
+    """Fit UMAP on paths (both 2D and 3D), update user Sound rows (and optionally builtin.json).
+
+    Path order must be [builtin..., user...] when successful_builtin_ids is set;
+    user_coords_offset is the start index for user coords.
+    """
     if not successful_paths:
         raise HTTPException(
             status_code=400,
             detail="Feature extraction failed for all selected files",
         )
-    save_path = UMAP_MODEL_PATH if save_model else None
+    save_path_2d = UMAP_MODEL_2D_PATH if save_model else None
+    save_path_3d = UMAP_MODEL_3D_PATH if save_model else None
     try:
-        coords_list = await asyncio.to_thread(
-            fit_umap_get_coords, successful_paths, save_model_path=save_path, n_components=3
+        coords_2d_list = await asyncio.to_thread(
+            fit_umap_get_coords, successful_paths, save_model_path=save_path_2d, n_components=2
+        )
+        coords_3d_list = await asyncio.to_thread(
+            fit_umap_get_coords, successful_paths, save_model_path=save_path_3d, n_components=3
         )
     except (SoundSpaceError, ValueError, Exception) as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
@@ -225,25 +234,22 @@ async def _run_umap_and_apply(
     updated = 0
     for i, uid in enumerate(successful_user_ids):
         idx = user_coords_offset + i
-        if idx >= len(coords_list):
+        if idx >= len(coords_2d_list) or idx >= len(coords_3d_list):
             break
-        coords = coords_list[idx]
         sound = id_to_sound.get(uid)
         if sound is not None:
-            sound.coords_2d = coords[:2]
-            sound.coords_3d = coords[:3] if len(coords) >= 3 else [coords[0], coords[1], 0.0]
+            sound.coords_2d = coords_2d_list[idx]
+            sound.coords_3d = coords_3d_list[idx]
             updated += 1
 
     if successful_builtin_ids is not None and builtin_points_raw is not None:
-        builtin_coords_by_id = {
-            bid: coords_list[j] for j, bid in enumerate(successful_builtin_ids) if j < len(coords_list)
-        }
+        builtin_2d_by_id = {builtin_id: coords_2d_list[j] for j, builtin_id in enumerate(successful_builtin_ids) if j < len(coords_2d_list)}
+        builtin_3d_by_id = {builtin_id: coords_3d_list[j] for j, builtin_id in enumerate(successful_builtin_ids) if j < len(coords_3d_list)}
         for point in builtin_points_raw:
-            pid = point.get("id")
-            if pid is not None and pid in builtin_coords_by_id:
-                c = builtin_coords_by_id[pid]
-                point["coords_2d"] = c[:2]
-                point["coords_3d"] = c[:3] if len(c) >= 3 else [c[0], c[1], 0.0]
+            point_id = point.get("id")
+            if point_id is not None and point_id in builtin_2d_by_id and point_id in builtin_3d_by_id:
+                point["coords_2d"] = builtin_2d_by_id[point_id]
+                point["coords_3d"] = builtin_3d_by_id[point_id]
                 updated += 1
         META_DIR.mkdir(parents=True, exist_ok=True)
         BUILTIN_JSON_PATH.write_text(

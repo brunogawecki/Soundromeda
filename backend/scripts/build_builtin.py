@@ -23,14 +23,14 @@ _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
-
 from app.config import (
     AUDIO_DIR,
     AUDIO_EXTENSIONS_SET,
     BUILTIN_JSON_PATH,
     DEFAULT_AUDIO_SOURCE_PATH,
     MAX_SAMPLE_DURATION_SEC,
-    UMAP_MODEL_PATH,
+    UMAP_MODEL_2D_PATH,
+    UMAP_MODEL_3D_PATH,
 )
 
 logger = logging.getLogger(__name__)
@@ -126,11 +126,12 @@ def main() -> None:
     build_and_write_builtin_json(
         paths,
         BUILTIN_JSON_PATH,
-        model_path=UMAP_MODEL_PATH,
+        model_path_2d=UMAP_MODEL_2D_PATH,
+        model_path_3d=UMAP_MODEL_3D_PATH,
         base_audio_path=base_audio_path,
         audio_root=audio_root,
     )
-    print(f"Wrote {BUILTIN_JSON_PATH}, model {UMAP_MODEL_PATH}")
+    print(f"Wrote {BUILTIN_JSON_PATH}, models {UMAP_MODEL_2D_PATH} and {UMAP_MODEL_3D_PATH}")
 
 
 if __name__ == "__main__":

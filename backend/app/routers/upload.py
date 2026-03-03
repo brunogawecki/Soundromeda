@@ -79,14 +79,14 @@ async def upload_sound(request: Request, file: UploadFile = File(...), db: Async
         destination_path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=f"Audio exceeds maximum duration of {MAX_SAMPLE_DURATION_SEC:.0f}s (got {duration_sec:.1f}s).")
 
-    # Run soundspace embedding (uses saved UMAP model so new sound maps into existing galaxy)
+    # Run soundspace embedding (uses saved UMAP models so new sound maps into existing galaxy)
     try:
-        coords = embed_single_sample(destination_path)
+        result = embed_single_sample(destination_path)
     except SoundSpaceError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
-    coords_2d = coords[:2]
-    coords_3d = coords[:3] if len(coords) >= 3 else [coords[0], coords[1], 0.0]
+    coords_2d = result["coords_2d"]
+    coords_3d = result["coords_3d"]
 
     # Persist to DB
     audio_path = f"uploads/{safe_name}"

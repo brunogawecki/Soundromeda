@@ -151,39 +151,49 @@ class SoundSpaceEmbedder:
     def embed_single_sample(
         self,
         audio_path: str | Path,
-        model_path: str | Path | None = None,
-    ) -> list[float]:
-        """Compute layout coordinates for a single audio file using a saved model.
+        model_path_2d: str | Path | None = None,
+        model_path_3d: str | Path | None = None,
+    ) -> dict[str, list[float]]:
+        """Compute 2D and 3D layout coordinates for a single audio file using saved models.
 
-        Transforms the file into the existing UMAP space. Requires a model
+        Transforms the file into both existing UMAP spaces. Requires models
         previously saved via fit_umap_get_coords(..., save_model_path=...).
 
         Args:
             audio_path: Path to the audio file.
-            model_path: Path to saved model. If None, uses backend static/meta/umap_model.joblib.
+            model_path_2d: Path to saved 2D model. If None, uses backend static/meta/umap_model_2d.joblib.
+            model_path_3d: Path to saved 3D model. If None, uses backend static/meta/umap_model_3d.joblib.
 
         Returns:
-            Coords [x, y] or [x, y, z] (length matches the model's n_components).
+            Dict with "coords_2d" ([x, y]) and "coords_3d" ([x, y, z]).
 
         Raises:
-            SoundSpaceError: If no model exists at model_path or transform fails.
+            SoundSpaceError: If no model exists at either path or transform fails.
         """
         path = Path(audio_path)
-        if model_path is None:
-            backend_root = Path(__file__).resolve().parent.parent.parent
-            model_path = backend_root / "static" / "meta" / "umap_model.joblib"
-        model_path = Path(model_path)
+        backend_root = Path(__file__).resolve().parent.parent.parent
+        meta_dir = backend_root / "static" / "meta"
 
-        if not model_path.exists():
-            raise SoundSpaceError(
-                "Layout model not found. From the backend directory run: "
-                "python scripts/build_builtin.py [audio_directory] to create it (e.g. python scripts/build_builtin.py static/audio/UK_Garage_Samples)."
-            )
+        if model_path_2d is None:
+            model_path_2d = meta_dir / "umap_model_2d.joblib"
+        if model_path_3d is None:
+            model_path_3d = meta_dir / "umap_model_3d.joblib"
+        model_path_2d = Path(model_path_2d)
+        model_path_3d = Path(model_path_3d)
+
+        for model_path in (model_path_2d, model_path_3d):
+            if not model_path.exists():
+                raise SoundSpaceError(
+                    f"Layout model not found: {model_path}. From the backend directory run: "
+                    "python scripts/build_builtin.py [audio_directory] to create it."
+                )
         try:
-            return self._transform_with_umap_model(path, model_path)
+            coords_2d = self._transform_with_umap_model(path, model_path_2d)
+            coords_3d = self._transform_with_umap_model(path, model_path_3d)
+            return {"coords_2d": coords_2d, "coords_3d": coords_3d}
         except Exception as e:
             raise SoundSpaceError(
-                f"Failed to transform {path} with model: {e}"
+                f"Failed to transform {path} with models: {e}"
             ) from e
 
     def build_and_write_builtin_json(
@@ -191,36 +201,39 @@ class SoundSpaceEmbedder:
         audio_paths: list[str | Path],
         meta_path: str | Path,
         *,
-        model_path: str | Path | None = None,
+        model_path_2d: str | Path | None = None,
+        model_path_3d: str | Path | None = None,
         base_audio_path: str = "audio/",
         audio_root: str | Path | None = None,
     ) -> None:
         """Precompute layout and write built-in meta JSON for the galaxy API.
 
-        Runs fit_umap_get_coords, optionally saves the model, and writes a JSON file
-        with points (id, coords_2d, coords_3d, name, audio_path).
+        Fits two separate UMAP models (2D and 3D) so each dimensionality
+        optimally preserves sonic similarity. Writes a JSON file with points
+        (id, coords_2d, coords_3d, name, audio_path).
 
         Args:
             audio_paths: List of paths to audio files.
             meta_path: Output path for the meta JSON (e.g. builtin.json).
-            model_path: If set, save UMAP model here for transform of user uploads.
+            model_path_2d: If set, save 2D UMAP model here for transform of user uploads.
+            model_path_3d: If set, save 3D UMAP model here for transform of user uploads.
             base_audio_path: Prefix for audio_path in each point (e.g. "audio/").
             audio_root: If set, audio_path is base_audio_path + path relative to this.
         """
         import json
 
         paths = [Path(p).resolve() for p in audio_paths]
-        coords_list = self.fit_umap_get_coords(
+        coords_2d_list = self.fit_umap_get_coords(
+        paths, save_model_path=model_path_2d, n_components=2)
+        coords_3d_list = self.fit_umap_get_coords(
             paths,
-            save_model_path=model_path,
+            save_model_path=model_path_3d,
             n_components=3,
         )
         root = Path(audio_root).resolve() if audio_root else None
 
         points = []
-        for i, (path, coords) in enumerate(zip(paths, coords_list)):
-            coords_2d = coords[:2]
-            coords_3d = coords[:3]
+        for i, (path, c2d, c3d) in enumerate(zip(paths, coords_2d_list, coords_3d_list)):
             name = path.stem or path.name
             if root is not None:
                 try:
@@ -232,8 +245,8 @@ class SoundSpaceEmbedder:
             rel_str = str(rel).replace("\\", "/")
             points.append({
                 "id": f"builtin-{i}",
-                "coords_2d": coords_2d,
-                "coords_3d": coords_3d,
+                "coords_2d": c2d,
+                "coords_3d": c3d,
                 "name": name,
                 "audio_path": base_audio_path + rel_str,
             })

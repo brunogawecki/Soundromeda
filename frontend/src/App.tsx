@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { useAppStore } from './store/useAppStore';
+import { DAMPING_FACTOR_2D, DAMPING_FACTOR_3D, MIN_2D_ZOOM, MAX_2D_ZOOM } from './config';
 import { useToneStart } from './useTone';
 import { Scene } from './components/Scene';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -14,16 +15,34 @@ const ORBIT_TARGET_LERP_SPEED = 3;
 function AnimatedOrbitControls() {
   const controlsRef = useRef<React.ComponentRef<typeof OrbitControls> | null>(null);
   const orbitTarget = useAppStore((s) => s.orbitTarget);
+  const viewMode = useAppStore((s) => s.viewMode);
   const desiredTarget = useRef(new THREE.Vector3(orbitTarget[0], orbitTarget[1], orbitTarget[2]));
 
   useFrame((_, delta) => {
     const controls = controlsRef.current as unknown as { target: THREE.Vector3 } | null;
     if (!controls?.target) return;
+    // In 2D mode, let OrbitControls handle panning directly without lerp fighting it.
+    if (viewMode === '2d') return;
     desiredTarget.current.set(orbitTarget[0], orbitTarget[1], orbitTarget[2]);
     controls.target.lerp(desiredTarget.current, 1 - Math.exp(-ORBIT_TARGET_LERP_SPEED * delta));
   });
 
-  return <OrbitControls ref={controlsRef} />;
+  return (
+    <OrbitControls
+      ref={controlsRef}
+      enableRotate={viewMode === '3d'}
+      screenSpacePanning
+      enableDamping
+      dampingFactor={viewMode === '2d' ? DAMPING_FACTOR_2D : DAMPING_FACTOR_3D}
+      mouseButtons={viewMode === '2d' ? {
+        LEFT: THREE.MOUSE.PAN,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.PAN,
+      } : undefined}
+      minZoom={viewMode === '2d' ? MIN_2D_ZOOM : undefined}
+      maxZoom={viewMode === '2d' ? MAX_2D_ZOOM : undefined}
+    />
+  );
 }
 
 function App() {
@@ -33,6 +52,7 @@ function App() {
   const pointerX = useAppStore((s) => s.pointerX);
   const pointerY = useAppStore((s) => s.pointerY);
   const hoverTooltipMode = useAppStore((s) => s.hoverTooltipMode);
+  const viewMode = useAppStore((s) => s.viewMode);
 
   const onInteraction = useCallback(() => {
     startTone();
@@ -48,11 +68,13 @@ function App() {
 
   return (
     <div className="app">
-      <Canvas
-        camera={{ position: [0, 0, 5], fov: 50 }}
-        gl={{ antialias: true, alpha: false }}
-      >
+      <Canvas gl={{ antialias: true, alpha: false }}>
         <color attach="background" args={['#0c0c0e']} />
+        {viewMode === '3d' ? (
+          <PerspectiveCamera makeDefault position={[0, 0, 5]} fov={50} />
+        ) : (
+          <OrthographicCamera makeDefault position={[0, 0, 100]} zoom={50} />
+        )}
         <Scene />
         <AnimatedOrbitControls />
       </Canvas>

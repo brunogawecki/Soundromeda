@@ -34,11 +34,11 @@ def fit_umap_get_coords(audio_paths: list[str | Path], *, save_model_path: str |
     return _default_embedder().fit_umap_get_coords(audio_paths, save_model_path=save_model_path, n_components=n_components, n_neighbors=n_neighbors, min_dist=min_dist)
 
 
-def embed_single_sample(audio_path: str | Path, model_path: str | Path | None = None) -> list[float]:
-    """Compute coordinates for one file using a saved model (convenience)."""
-    return _default_embedder().embed_single_sample(audio_path, model_path=model_path)
+def embed_single_sample(audio_path: str | Path, model_path_2d: str | Path | None = None, model_path_3d: str | Path | None = None) -> dict[str, list[float]]:
+    """Compute 2D and 3D coordinates for one file using saved models (convenience)."""
+    return _default_embedder().embed_single_sample(audio_path, model_path_2d=model_path_2d, model_path_3d=model_path_3d)
 
 
-def build_and_write_builtin_json(audio_paths: list[str | Path], meta_path: str | Path, *, model_path: str | Path | None = None, base_audio_path: str = "audio/", audio_root: str | Path | None = None) -> None:
+def build_and_write_builtin_json(audio_paths: list[str | Path], meta_path: str | Path, *, model_path_2d: str | Path | None = None, model_path_3d: str | Path | None = None, base_audio_path: str = "audio/", audio_root: str | Path | None = None) -> None:
     """Precompute layout and write built-in meta JSON (convenience)."""
-    _default_embedder().build_and_write_builtin_json(audio_paths, meta_path, model_path=model_path, base_audio_path=base_audio_path, audio_root=audio_root)
+    _default_embedder().build_and_write_builtin_json(audio_paths, meta_path, model_path_2d=model_path_2d, model_path_3d=model_path_3d, base_audio_path=base_audio_path, audio_root=audio_root)

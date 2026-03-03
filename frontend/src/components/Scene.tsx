@@ -1,8 +1,9 @@
-import { useRef, useEffect, useState, useMemo } from 'react';
+import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useAppStore } from '../store/useAppStore';
 import type { SoundPoint } from '../types/sounds';
 import { playAudioUrl, useToneStart } from '../useTone';
+import { POINT_SIZE_2D, POINT_SIZE_3D, HOVER_NDC_RADIUS, HOVER_PLAY_DELAY_MS, DEFAULT_2D_ZOOM } from '../config';
 import * as THREE from 'three';
 
 // --- Logic ---
@@ -38,13 +39,10 @@ async function fetchAllPoints(): Promise<{ builtin: SoundPoint[]; user: SoundPoi
   }
 }
 
-/** Hit-test radius in normalized device coords [-1,1]; points within this distance of cursor count as hovered. */
-const HOVER_NDC_RADIUS = 0.04;
-
-/** Delay (ms) before playing sound on hover; avoids click artifacts when moving quickly between points. */
-const HOVER_PLAY_DELAY_MS = 30;
-
-function getSoundPointPosition3D(soundPoint: SoundPoint): [number, number, number] {
+function getSoundPointPosition(soundPoint: SoundPoint, viewMode: '2d' | '3d'): [number, number, number] {
+  if (viewMode === '2d') {
+    return [soundPoint.coords_2d[0], soundPoint.coords_2d[1], 0];
+  }
   if (soundPoint.coords_3d && soundPoint.coords_3d.length === 3) {
     return [soundPoint.coords_3d[0], soundPoint.coords_3d[1], soundPoint.coords_3d[2]];
   }
@@ -58,13 +56,14 @@ function findClosestSoundPointToCursor(
   matrixWorld: THREE.Matrix4,
   worldPositionRef: { current: THREE.Vector3 },
   normalizedDeviceCoordsRef: { current: THREE.Vector3 },
+  viewMode: '2d' | '3d',
 ): { id: string | null; name: string | null } {
   let bestId: string | null = null;
   let bestName: string | null = null;
   let bestDistSq = HOVER_NDC_RADIUS * HOVER_NDC_RADIUS;
   for (let i = 0; i < points.length; i++) {
     const point = points[i];
-    const [x, y, z] = getSoundPointPosition3D(point);
+    const [x, y, z] = getSoundPointPosition(point, viewMode);
     worldPositionRef.current.set(x, y, z).applyMatrix4(matrixWorld);
     normalizedDeviceCoordsRef.current.copy(worldPositionRef.current).project(camera);
     const dx = normalizedDeviceCoordsRef.current.x - mouseNdc.x;
@@ -79,10 +78,10 @@ function findClosestSoundPointToCursor(
   return { id: bestId, name: bestName };
 }
 
-function soundPointsToPositions(soundPoints: SoundPoint[]): Float32Array {
+function soundPointsToPositions(soundPoints: SoundPoint[], viewMode: '2d' | '3d'): Float32Array {
   const pos = new Float32Array(soundPoints.length * 3);
   soundPoints.forEach((point, i) => {
-    const [x, y, z] = getSoundPointPosition3D(point);
+    const [x, y, z] = getSoundPointPosition(point, viewMode);
     pos[i * 3] = x;
     pos[i * 3 + 1] = y;
     pos[i * 3 + 2] = z;
@@ -111,6 +110,7 @@ function useSceneLogic() {
   const orbitCenterPointId = useAppStore((s) => s.orbitCenterPointId);
   const setOrbitTarget = useAppStore((s) => s.setOrbitTarget);
   const setOrbitCenterPointId = useAppStore((s) => s.setOrbitCenterPointId);
+  const viewMode = useAppStore((s) => s.viewMode);
 
   const { camera } = useThree();
   const startTone = useToneStart();
@@ -187,6 +187,7 @@ function useSceneLogic() {
       primaryPointsRef.current.matrixWorld,
       worldPosition,
       normalizedDeviceCoords,
+      viewMode,
     );
     setHoveredId(bestId);
     setHoveredName(bestName);
@@ -218,13 +219,13 @@ function useSceneLogic() {
     if (hoveredId == null || points.length === 0) return;
     const point = points.find((p) => String(p.id) === String(hoveredId));
     if (!point) return;
-    const [x, y, z] = getSoundPointPosition3D(point);
+    const [x, y, z] = getSoundPointPosition(point, viewMode);
     setOrbitTarget(x, y, z);
     setOrbitCenterPointId(hoveredId);
   };
 
-  const builtinPositions = useMemo(() => soundPointsToPositions(builtinPoints), [builtinPoints]);
-  const userPositions = useMemo(() => soundPointsToPositions(userPoints), [userPoints]);
+  const builtinPositions = useMemo(() => soundPointsToPositions(builtinPoints, viewMode), [builtinPoints, viewMode]);
+  const userPositions = useMemo(() => soundPointsToPositions(userPoints, viewMode), [userPoints, viewMode]);
 
   return {
     points,
@@ -238,6 +239,7 @@ function useSceneLogic() {
     selectedId,
     highlightedListAudioUrl,
     orbitCenterPointId,
+    viewMode,
     handlePointerMove,
     handlePointerEnter,
     handlePointerLeave,
@@ -283,20 +285,71 @@ function InvisibleHitPlane({ planeRef, onPointerEnter, onPointerMove, onPointerL
   );
 }
 
+/** Single shared texture: white circle on transparent, for use as PointsMaterial map. */
+const circleTexture = (() => {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const r = size / 2;
+  const gradient = ctx.createRadialGradient(r, r, 0, r, r, r);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.9, 'rgba(255,255,255,1)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+})();
+
 interface PointsCloudProps {
   positions: Float32Array;
   color: string;
   size: number;
   pointsRef?: React.RefObject<THREE.Points | null>;
+  sizeAttenuation?: boolean;
+  viewMode?: '2d' | '3d';
 }
 
-function PointsCloud({ positions, color, size, pointsRef }: PointsCloudProps) {
+function PointsCloud({ positions, color, size, pointsRef, sizeAttenuation = true, viewMode = '3d' }: PointsCloudProps) {
+  const pointsLocalRef = useRef<THREE.Points | null>(null);
+  const { camera } = useThree();
+
+  useFrame(() => {
+    if (viewMode !== '2d') return;
+    const points = pointsLocalRef.current;
+    const mat = points?.material as THREE.PointsMaterial | undefined;
+    if (!mat) return;
+    const zoom = (camera as THREE.OrthographicCamera).zoom ?? DEFAULT_2D_ZOOM;
+    // Keep base pixel size (size) at default zoom; scale with zoom so points grow when zooming in.
+    mat.size = size * (zoom / DEFAULT_2D_ZOOM);
+  });
+
+  const setRef = useCallback(
+    (el: THREE.Points | null) => {
+      pointsLocalRef.current = el;
+      if (pointsRef) (pointsRef as React.MutableRefObject<THREE.Points | null>).current = el;
+    },
+    [pointsRef],
+  );
+
   return (
-    <points ref={pointsRef}>
+    <points ref={setRef}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <pointsMaterial size={size} color={color} sizeAttenuation transparent opacity={0.9} />
+      <pointsMaterial
+        size={size}
+        color={color}
+        sizeAttenuation={sizeAttenuation}
+        map={circleTexture}
+        transparent
+        opacity={0.9}
+        alphaTest={0.01}
+        depthWrite
+      />
     </points>
   );
 }
@@ -304,13 +357,14 @@ function PointsCloud({ positions, color, size, pointsRef }: PointsCloudProps) {
 interface HoveredPointMarkerProps {
   points: SoundPoint[];
   hoveredId: string | null;
+  viewMode: '2d' | '3d';
 }
 
-function HoveredPointMarker({ points, hoveredId }: HoveredPointMarkerProps) {
+function HoveredPointMarker({ points, hoveredId, viewMode }: HoveredPointMarkerProps) {
   if (hoveredId == null) return null;
   const point = points.find((x) => String(x.id) === String(hoveredId));
   if (!point) return null;
-  const [x, y, z] = getSoundPointPosition3D(point);
+  const [x, y, z] = getSoundPointPosition(point, viewMode);
   return (
     <mesh position={[x, y, z]}>
       <sphereGeometry args={[0.06, 16, 16]} />
@@ -322,13 +376,14 @@ function HoveredPointMarker({ points, hoveredId }: HoveredPointMarkerProps) {
 interface HighlightedListPointMarkerProps {
   points: SoundPoint[];
   highlightedListAudioUrl: string | null;
+  viewMode: '2d' | '3d';
 }
 
-function HighlightedListPointMarker({ points, highlightedListAudioUrl }: HighlightedListPointMarkerProps) {
+function HighlightedListPointMarker({ points, highlightedListAudioUrl, viewMode }: HighlightedListPointMarkerProps) {
   if (highlightedListAudioUrl == null) return null;
   const point = points.find((x) => x.audioUrl === highlightedListAudioUrl);
   if (!point) return null;
-  const [x, y, z] = getSoundPointPosition3D(point);
+  const [x, y, z] = getSoundPointPosition(point, viewMode);
   return (
     <mesh position={[x, y, z]}>
       <sphereGeometry args={[0.15, 10, 10]} />
@@ -340,17 +395,18 @@ function HighlightedListPointMarker({ points, highlightedListAudioUrl }: Highlig
 interface MarkOrbitCenterPointProps {
   points: SoundPoint[];
   orbitCenterPointId: string | null;
+  viewMode: '2d' | '3d';
 }
 
-function MarkOrbitCenterPoint({ points, orbitCenterPointId }: MarkOrbitCenterPointProps) {
+function MarkOrbitCenterPoint({ points, orbitCenterPointId, viewMode }: MarkOrbitCenterPointProps) {
   if (orbitCenterPointId == null) return null;
   const point = points.find((x) => String(x.id) === String(orbitCenterPointId));
   if (!point) return null;
-  const [x, y, z] = getSoundPointPosition3D(point);
+  const [x, y, z] = getSoundPointPosition(point, viewMode);
   return (
     <mesh position={[x, y, z]} renderOrder={1}>
       <sphereGeometry args={[0.04, 16, 16]} />
-      <meshBasicMaterial color="#22c55e" transparent opacity={0.9}/>
+      <meshBasicMaterial color="#22c55e" transparent opacity={0.9} />
     </mesh>
   );
 }
@@ -367,6 +423,7 @@ export function Scene() {
     hoveredId,
     highlightedListAudioUrl,
     orbitCenterPointId,
+    viewMode,
     handlePointerMove,
     handlePointerEnter,
     handlePointerLeave,
@@ -389,14 +446,41 @@ export function Scene() {
   return (
     <>
       <SceneLighting />
-      <InvisibleHitPlane planeRef={planeRef} onPointerEnter={handlePointerEnter} onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave} onPointerDown={handlePointerDown} onDoubleClick={handleDoubleClick} />
+      <InvisibleHitPlane
+        planeRef={planeRef}
+        onPointerEnter={handlePointerEnter}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        onPointerDown={handlePointerDown}
+        onDoubleClick={handleDoubleClick}
+      />
       {/* Point clouds: builtin (blue), user (orange); primaryPointsRef used for hit-test (builtin or user when only user has points) */}
-      {builtinPoints.length > 0 && <PointsCloud pointsRef={primaryPointsRef} positions={builtinPositions} color="#3b82f6" size={0.12} key={`builtin-${builtinPoints.length}`} />}
-      {userPoints.length > 0 && <PointsCloud pointsRef={builtinPoints.length === 0 ? primaryPointsRef : undefined} positions={userPositions} color="#f97316" size={0.12} key={`user-${userPoints.length}`} />}
+      {builtinPoints.length > 0 && (
+        <PointsCloud
+          pointsRef={primaryPointsRef}
+          positions={builtinPositions}
+          color="#3b82f6"
+          size={viewMode === '2d' ? POINT_SIZE_2D : POINT_SIZE_3D}
+          sizeAttenuation={viewMode === '3d'}
+          viewMode={viewMode}
+          key={`builtin-${builtinPoints.length}-${viewMode}`}
+        />
+      )}
+      {userPoints.length > 0 && (
+        <PointsCloud
+          pointsRef={builtinPoints.length === 0 ? primaryPointsRef : undefined}
+          positions={userPositions}
+          color="#f97316"
+          size={viewMode === '2d' ? POINT_SIZE_2D : POINT_SIZE_3D}
+          sizeAttenuation={viewMode === '3d'}
+          viewMode={viewMode}
+          key={`user-${userPoints.length}-${viewMode}`}
+        />
+      )}
       {/* Hover + list-highlight markers */}
-      <HoveredPointMarker points={points} hoveredId={hoveredId} />
-      <HighlightedListPointMarker points={points} highlightedListAudioUrl={highlightedListAudioUrl} />
-      <MarkOrbitCenterPoint points={points} orbitCenterPointId={orbitCenterPointId} />
+      <HoveredPointMarker points={points} hoveredId={hoveredId} viewMode={viewMode} />
+      <HighlightedListPointMarker points={points} highlightedListAudioUrl={highlightedListAudioUrl} viewMode={viewMode} />
+      <MarkOrbitCenterPoint points={points} orbitCenterPointId={orbitCenterPointId} viewMode={viewMode} />
     </>
   );
 }
